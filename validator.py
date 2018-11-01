@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from importlib import import_module
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.errors import KafkaError
-from argparse import Namespace
+from tempfile import NamedTemporaryFile
 
 
 # Logging
@@ -54,13 +54,14 @@ produce_queue = collections.deque([], 999)
 async def check_tar(archive, payload_id):
     if not tarfile.is_tarfile(archive):
         logger.error('Payload %s is not a tar file.', payload_id)
-        return
+        yield False
+    logger.info('%s is a tar', payload_id)
 
     try:
         tar = tarfile.open(archive)
     except tarfile.ReadError:
         logger.error('Payload %s cannot be opened', payload_id)
-        return
+        yield False
 
     # check uncompressed size
     size = 0
@@ -71,16 +72,20 @@ async def check_tar(archive, payload_id):
 
 
 # Pull facts out of the archive to place in the message
-async def extract_facts(archive, payload_id):
+async def extract_facts(archive):
     facts = {}
-    tar = tarfile.open(archive)
+    try:
+        tar = tarfile.open(archive)
+    except ValueError:
+        logger.error('Tarfile not found')
+        return
     # this currently assumes the root is the insights archive name
     root = tar.getnames()[1]
     for path in FILEPATHS:
-        content = tar.extractfile(root + path)
-        facts[path] = content.read()
-
-    yield facts
+        if root + path in tar.getnames():
+            content = tar.extractfile(root + path)
+            facts[path] = content.read().decode('utf-8')
+    return facts
 
 
 class MQStatus(object):
@@ -147,6 +152,7 @@ async def producer(loop=loop):
                 "Popped item from produce queue (qsize: %d): topic %s: %s",
                 len(produce_queue), topic, msg
             )
+
             try:
                 await mqp.send_and_wait(topic, json.dumps(msg).encode('utf-8'))
                 logger.info("Produced on topic %s: %s", topic, msg)
@@ -171,40 +177,48 @@ async def handle_file(msgs):
             logger.error("payload_id not in message. Payload not removed from quarantine.")
             return
 
-        received = Namespace(**data)
-        tarfile = requests.get(received.pop('url'))
+        if not data['url']:
+            logger.error('No URL in message. Cannot download payload')
+            return
 
-        tar_check = await check_tar(tarfile)
+        tarfile = requests.get(data.pop('url'))
+        if tarfile.status_code != 200:
+            return
+        tempfile = NamedTemporaryFile(delete=False).name
+        open(tempfile, 'wb').write(tarfile.content)
+
+        tar_check = check_tar(tempfile, data['payload_id'])
 
         if tar_check:
-            facts = await extract_facts(tarfile, received['payload_id'])
+            facts = await extract_facts(tempfile)
 
             url = await loop.run_in_executor(
-                None, storage.copy, storage.QUARANTINE, storage.PERM, received['payload_id']
+                None, storage.copy, storage.QUARANTINE, storage.PERM, data['payload_id']
             )
-            logger.info(url)
-            received['url'] = url
+            data['url'] = url
 
-            publish = {**facts, **received}
-
+            publish = {**facts, **data}
             if publish:
-                produce_queue.append({'topic': 'platform.validator.result', 'msg': publish})
+                produce_queue.append({'topic': 'platform.upload.result', 'msg': publish})
                 logger.info(
                     "Data for payload_id [%s] put on produce queue (qsize: %d)",
                     data['payload_id'], len(produce_queue)
                 )
         else:
             url = await loop.run_in_executor(
-                None, storage.copy, storage.QUARANTINE, storage.REJECT, received['payload_id']
+                None, storage.copy, storage.QUARANTINE, storage.REJECT, data['payload_id']
             )
-            logger.error('Payload failed tests. Rejected ID %s', received['payload_id'])
+            logger.error('Payload failed tests. Rejected ID %s', data['payload_id'])
+
+        os.remove(tempfile)
 
 
 def main():
     try:
         loop.set_default_executor(thread_pool_executor)
-        loop.run_until_complete(consumer())
-        loop.run_until_complete(producer())
+        loop.create_task(consumer())
+        loop.create_task(producer())
+        loop.run_forever()
     except KeyboardInterrupt:
         loop.stop()
 
