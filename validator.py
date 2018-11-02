@@ -88,27 +88,30 @@ async def extract_facts(archive):
     return facts
 
 
-class MQStatus(object):
-    """Class used to track the status of the producer/consumer clients."""
-    mqc_connected = False
-    mqp_connected = False
+mq_conn_status = {"consumer": False, "producer": False}
+
+
+async def ensure_connected(direction, level=0):
+    if level > 5:
+        raise KafkaError("Failed to connect after 5 attempts")
+
+    if not mq_conn_status[direction]:
+        try:
+            logger.info(f"{direction} client not connected, attempting to connect...")
+            await mqc.start() if direction == "consumer" else mqp.start()            
+            logger.info(f"{direction} client connected!")
+            mq_conn_status[direction] = True
+        except KafkaError:
+            logger.exception(f"{direction} client hit error, triggering re-connect...")
+            await asyncio.sleep(5)
+            await ensure_connected(direction, level=level + 1)
 
 
 async def consumer(loop=loop):
     """Consume indefinitely from the validator queue."""
-    MQStatus.mqc_connected = False
+    mq_conn_status["consumer"] = False
     while True:
-        # If not connected, attempt to connect...
-        if not MQStatus.mqc_connected:
-            try:
-                logger.info("Consume client not connected, attempting to connect...")
-                await mqc.start()
-                logger.info("Consumer client connected!")
-                MQStatus.mqc_connected = True
-            except KafkaError:
-                logger.exception('Consume client hit error, triggering re-connect...')
-                await asyncio.sleep(5)
-                continue
+        await ensure_connected("consumer")
 
         # Consume
         try:
@@ -117,37 +120,18 @@ async def consumer(loop=loop):
                 if tp.topic == 'platform.upload.validator':
                     await handle_file(msgs)
         except KafkaError:
-            logger.exception('Consume client hit error, triggering re-connect...')
-            MQStatus.mqc_connected = False
+            logger.exception("Consume client hit error, triggering re-connect...")
+            mq_conn_status["consumer"] = False
+
         await asyncio.sleep(0.1)
 
 
 async def producer(loop=loop):
-    """boop
-    """
-    MQStatus.mqp_connected = False
+    mq_conn_status["producer"] = False
     while True:
-        # If not connected to kafka, attempt to connect...
-        if not MQStatus.mqp_connected:
-            try:
-                logger.info("Producer client not connected, attempting to connect...")
-                await mqp.start()
-                logger.info("Producer client connected!")
-                MQStatus.mqp_connected = True
-            except KafkaError:
-                logger.exception('Producer client hit error, triggering re-connect...')
-                await asyncio.sleep(5)
-                continue
+        await ensure_connected("producer")
 
-        # Pull items off our queue to produce
-        if not produce_queue:
-            await asyncio.sleep(0.1)
-            continue
-
-        for _ in range(0, len(produce_queue)):
-            item = produce_queue.popleft()
-            topic = item['topic']
-            msg = item['msg']
+        for topic, msg in produce_queue:
             logger.info(
                 "Popped item from produce queue (qsize: %d): topic %s: %s",
                 len(produce_queue), topic, msg
@@ -157,15 +141,16 @@ async def producer(loop=loop):
                 await mqp.send_and_wait(topic, json.dumps(msg).encode('utf-8'))
                 logger.info("Produced on topic %s: %s", topic, msg)
             except KafkaError:
-                logger.exception('Producer client hit error, triggering re-connect...')
-                MQStatus.mqp_connected = False
+                logger.exception("Producer client hit error, triggering re-connect...")
+                mq_conn_status["producer"] = False
                 # Put the item back on the queue so we can push it when we reconnect
-                produce_queue.appendleft(item)
+                produce_queue.appendleft((topic, msg))
+                break
+
+        await asyncio.sleep(0.1)
 
 
 async def handle_file(msgs):
-    """
-    """
     for msg in msgs:
         try:
             data = json.loads(msg.value)
@@ -181,36 +166,38 @@ async def handle_file(msgs):
             logger.error('No URL in message. Cannot download payload')
             return
 
-        tarfile = requests.get(data.pop('url'))
-        if tarfile.status_code != 200:
+        tar_file = requests.get(data.pop('url'))
+
+        if tar_file.status_code != 200:
             return
+
         tempfile = NamedTemporaryFile(delete=False).name
-        open(tempfile, 'wb').write(tarfile.content)
 
-        tar_check = check_tar(tempfile, data['payload_id'])
+        try:
+            open(tempfile, 'wb').write(tar_file.content)
 
-        if tar_check:
-            facts = await extract_facts(tempfile)
+            if check_tar(tempfile, data['payload_id']):
+                facts = await extract_facts(tempfile)
 
-            url = await loop.run_in_executor(
-                None, storage.copy, storage.QUARANTINE, storage.PERM, data['payload_id']
-            )
-            data['url'] = url
-
-            publish = {**facts, **data}
-            if publish:
-                produce_queue.append({'topic': 'platform.upload.result', 'msg': publish})
-                logger.info(
-                    "Data for payload_id [%s] put on produce queue (qsize: %d)",
-                    data['payload_id'], len(produce_queue)
+                url = await loop.run_in_executor(
+                    None, storage.copy, storage.QUARANTINE, storage.PERM, data['payload_id']
                 )
-        else:
-            url = await loop.run_in_executor(
-                None, storage.copy, storage.QUARANTINE, storage.REJECT, data['payload_id']
-            )
-            logger.error('Payload failed tests. Rejected ID %s', data['payload_id'])
+                data['url'] = url
 
-        os.remove(tempfile)
+                publish = {**facts, **data}
+                if publish:
+                    produce_queue.append(('platform.upload.result', publish))
+                    logger.info(
+                        "Data for payload_id [%s] put on produce queue (qsize: %d)",
+                        data['payload_id'], len(produce_queue)
+                    )
+            else:
+                url = await loop.run_in_executor(
+                    None, storage.copy, storage.QUARANTINE, storage.REJECT, data['payload_id']
+                )
+                logger.error('Payload failed tests. Rejected ID %s', data['payload_id'])
+        finally:
+            os.remove(tempfile)
 
 
 def main():
