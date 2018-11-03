@@ -8,6 +8,7 @@ aiokafka = "*"
 kafka = "*"
 requests = ">=2.20.0"
 boto3 = "*"
+insights-core = "*"
 
 [dev-packages]
 "flake8" = "*"
