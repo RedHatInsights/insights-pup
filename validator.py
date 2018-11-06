@@ -1,7 +1,6 @@
 import logging
 import asyncio
 import collections
-import tarfile
 import requests
 import os
 import json
@@ -11,6 +10,8 @@ from importlib import import_module
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.errors import KafkaError
 from tempfile import NamedTemporaryFile
+from insights import run, extract
+from insights.specs import Specs
 
 
 # Logging
@@ -28,7 +29,9 @@ storage = import_module("utils.storage.{}".format(storage_driver))
 MAX_WORKERS = int(os.getenv('MAX_WORKERS', 50))
 
 # env variable to tell which files to grab from an archive
-FILEPATHS = os.getenv('FILEPATHS').split(',')
+CANONICAL_FACTS = {
+    'machine_id': Specs.machine_id
+}
 
 
 loop = asyncio.get_event_loop()
@@ -51,44 +54,17 @@ mqp = AIOKafkaProducer(
 produce_queue = collections.deque([], 999)
 
 
-async def check_tar(archive, payload_id):
-    if not tarfile.is_tarfile(archive):
-        logger.error('Payload %s is not a tar file.', payload_id)
-        yield False
-    logger.info('%s is a tar', payload_id)
-
-    try:
-        tar = tarfile.open(archive)
-    except tarfile.ReadError:
-        logger.error('Payload %s cannot be opened', payload_id)
-        yield False
-
-    # check uncompressed size
-    size = 0
-    for name in tar:
-        size += name.size
-
-    yield True
+mq_conn_status = {"consumer": False, "producer": False}
 
 
-# Pull facts out of the archive to place in the message
 async def extract_facts(archive):
     facts = {}
-    try:
-        tar = tarfile.open(archive)
-    except ValueError:
-        logger.error('Tarfile not found')
-        return
-    # this currently assumes the root is the insights archive name
-    root = tar.getnames()[1]
-    for path in FILEPATHS:
-        if root + path in tar.getnames():
-            content = tar.extractfile(root + path)
-            facts[path] = content.read().decode('utf-8')
+    with extract(archive) as ex:
+        broker = run(root=ex.tmp_dir)
+        for k, v in CANONICAL_FACTS.items():
+            facts[k] = ('\n'.join(broker[v].content))
+
     return facts
-
-
-mq_conn_status = {"consumer": False, "producer": False}
 
 
 async def ensure_connected(direction, level=0):
@@ -98,7 +74,7 @@ async def ensure_connected(direction, level=0):
     if not mq_conn_status[direction]:
         try:
             logger.info(f"{direction} client not connected, attempting to connect...")
-            await mqc.start() if direction == "consumer" else mqp.start()            
+            await mqc.start() if direction == "consumer" else mqp.start()
             logger.info(f"{direction} client connected!")
             mq_conn_status[direction] = True
         except KafkaError:
@@ -176,9 +152,9 @@ async def handle_file(msgs):
         try:
             open(tempfile, 'wb').write(tar_file.content)
 
-            if check_tar(tempfile, data['payload_id']):
-                facts = await extract_facts(tempfile)
+            facts = await extract_facts(tempfile)
 
+            if facts:
                 url = await loop.run_in_executor(
                     None, storage.copy, storage.QUARANTINE, storage.PERM, data['payload_id']
                 )
