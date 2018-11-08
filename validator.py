@@ -76,7 +76,7 @@ async def post_to_inventory(facts, msg):
     post['account'] = post.pop('rh_account')
     post['canonical_facts'] = {}
 
-    identity = base64.b64encode(str({'account': post['account'], 'org_id': msg['org_id']}))
+    identity = base64.b64encode(str({'account': post['account'], 'org_id': msg['principal']}))
     headers = {'x-rh-identity': identity,
                'Content-Type': 'application/json'}
 
