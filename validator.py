@@ -4,6 +4,7 @@ import collections
 import requests
 import os
 import json
+import base64
 
 from concurrent.futures import ThreadPoolExecutor
 from importlib import import_module
