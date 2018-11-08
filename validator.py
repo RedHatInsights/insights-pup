@@ -30,9 +30,11 @@ MAX_WORKERS = int(os.getenv('MAX_WORKERS', 50))
 
 # env variable to tell which files to grab from an archive
 CANONICAL_FACTS = {
-    'machine_id': Specs.machine_id
+    'insights-id': Specs.machine_id,
+    'fqdn': Specs.hostname
 }
 
+INVENTORY_URL = os.getenv('INVENTORY_URL', 'http://inventory:5000/api/hosts')
 
 loop = asyncio.get_event_loop()
 thread_pool_executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
@@ -65,6 +67,21 @@ async def extract_facts(archive):
             facts[k] = ('\n'.join(broker[v].content))
 
     return facts
+
+
+async def post_to_inventory(facts, msg):
+
+    post = {**facts, **msg}
+    post['account'] = post.pop('rh_account')
+    post['canonical_facts'] = {}
+
+    # TODO: get the real identity header here via the upload service
+    headers = {'x-rh-identity': 'eyJhY2NvdW50X251bWJlciI6ICJzb21lIGFjY291bnQgbnVtYmVyIiwgIm9yZ19pZCI6ICJzb21lIG9yZyBpZCJ9',
+               'Content-Type': 'application/json'}
+
+    inv = requests.post(INVENTORY_URL, data=json.dumps(post), headers=headers)
+    if inv.status_code != 201:
+        logger.error('Failed to post to inventory: ' + inv.text)
 
 
 async def ensure_connected(direction, level=0):
@@ -160,13 +177,14 @@ async def handle_file(msgs):
                 )
                 data['url'] = url
 
-                publish = {**facts, **data}
-                if publish:
-                    produce_queue.append(('platform.upload.result', publish))
-                    logger.info(
-                        "Data for payload_id [%s] put on produce queue (qsize: %d)",
-                        data['payload_id'], len(produce_queue)
-                    )
+                produce_queue.append(('platform.upload.result', data))
+                logger.info(
+                    "Data for payload_id [%s] put on produce queue (qsize: %d)",
+                    data['payload_id'], len(produce_queue)
+                )
+
+                await post_to_inventory(facts, data)
+
             else:
                 url = await loop.run_in_executor(
                     None, storage.copy, storage.QUARANTINE, storage.REJECT, data['payload_id']
