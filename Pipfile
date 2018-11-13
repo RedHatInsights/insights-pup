@@ -5,10 +5,9 @@ name = "pypi"
 
 [packages]
 aiokafka = "*"
-kafka = "*"
-requests = ">=2.20.0"
-boto3 = "*"
 insights-core = "*"
+aiohttp = "*"
+tornado = "*"
 
 [dev-packages]
 "flake8" = "*"

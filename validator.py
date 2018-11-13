@@ -1,15 +1,16 @@
 import logging
 import asyncio
-import collections
-import requests
 import os
 import json
 import base64
+import aiohttp
+import tornado
+import tornado.web
+
+from tornado.ioloop import IOLoop
+from tempfile import NamedTemporaryFile
 
 from concurrent.futures import ThreadPoolExecutor
-from importlib import import_module
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from kafka.errors import KafkaError
 from tempfile import NamedTemporaryFile
 from insights import run, extract
 from insights.specs import Specs
@@ -22,12 +23,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger('validator')
 
-# Where to pull and push payloads to (s3, azure, local, etc.)
-storage_driver = os.getenv("STORAGE_DRIVER", "s3")
-storage = import_module("utils.storage.{}".format(storage_driver))
-
 # Maximum workers for threaded execution
 MAX_WORKERS = int(os.getenv('MAX_WORKERS', 50))
+
+LISTEN_PORT = int(os.getenv('LISTEN_PORT', 8080))
 
 # env variable to tell which files to grab from an archive
 CANONICAL_FACTS = {
@@ -37,27 +36,7 @@ CANONICAL_FACTS = {
 
 INVENTORY_URL = os.getenv('INVENTORY_URL', 'http://inventory:5000/api/hosts')
 
-loop = asyncio.get_event_loop()
 thread_pool_executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
-
-# Message Queue
-MQ = os.getenv('MQ_URL', 'kafka:29092').split(',')
-MQ_GROUP_ID = os.getenv('MQ_GROUP_ID', 'validator')
-mqc = AIOKafkaConsumer(
-    'platform.upload.validator', loop=loop, bootstrap_servers=MQ,
-    group_id=MQ_GROUP_ID
-)
-
-mqp = AIOKafkaProducer(
-    loop=loop, bootstrap_servers=MQ, request_timeout_ms=10000,
-    connections_max_idle_ms=None
-)
-
-# local queue for pushing items into kafka, this queue fills up if kafka goes down
-produce_queue = collections.deque([], 999)
-
-
-mq_conn_status = {"consumer": False, "producer": False}
 
 
 async def extract_facts(archive):
@@ -70,137 +49,86 @@ async def extract_facts(archive):
     return facts
 
 
-async def post_to_inventory(facts, msg):
-
-    post = {**facts, **msg}
-    post['account'] = post.pop('rh_account')
-    post['canonical_facts'] = {}
-
-    identity = base64.b64encode(str({'account': post['account'], 'org_id': msg['principal']}))
-    headers = {'x-rh-identity': identity,
-               'Content-Type': 'application/json'}
-
-    inv = requests.post(INVENTORY_URL, data=json.dumps(post), headers=headers)
-    if inv.status_code != 201:
-        logger.error('Failed to post to inventory: ' + inv.text)
+session = aiohttp.ClientSession()
 
 
-async def ensure_connected(direction, level=0):
-    if level > 5:
-        raise KafkaError("Failed to connect after 5 attempts")
+class ValidateHandler(tornado.web.RequestHandler):
 
-    if not mq_conn_status[direction]:
-        try:
-            logger.info(f"{direction} client not connected, attempting to connect...")
-            await mqc.start() if direction == "consumer" else mqp.start()
-            logger.info(f"{direction} client connected!")
-            mq_conn_status[direction] = True
-        except KafkaError:
-            logger.exception(f"{direction} client hit error, triggering re-connect...")
-            await asyncio.sleep(5)
-            await ensure_connected(direction, level=level + 1)
+    async def post_to_inventory(self, facts, data):
 
+        post = {**facts, **data}
+        post['account'] = post.pop('rh_account')
+        post['canonical_facts'] = {}
 
-async def consumer(loop=loop):
-    """Consume indefinitely from the validator queue."""
-    mq_conn_status["consumer"] = False
-    while True:
-        await ensure_connected("consumer")
+        identity = base64.b64encode(json.dumps({'identity': {'account_number': post['account'], 'org_id': data['principal']}}).encode()).decode()
+        headers = {'x-rh-identity': identity,
+                   'Content-Type': 'application/json'}
 
-        # Consume
-        try:
-            data = await mqc.getmany()
-            for tp, msgs in data.items():
-                if tp.topic == 'platform.upload.validator':
-                    await handle_file(msgs)
-        except KafkaError:
-            logger.exception("Consume client hit error, triggering re-connect...")
-            mq_conn_status["consumer"] = False
-
-        await asyncio.sleep(0.1)
-
-
-async def producer(loop=loop):
-    mq_conn_status["producer"] = False
-    while True:
-        await ensure_connected("producer")
-
-        for topic, msg in produce_queue:
-            logger.info(
-                "Popped item from produce queue (qsize: %d): topic %s: %s",
-                len(produce_queue), topic, msg
-            )
-
-            try:
-                await mqp.send_and_wait(topic, json.dumps(msg).encode('utf-8'))
-                logger.info("Produced on topic %s: %s", topic, msg)
-            except KafkaError:
-                logger.exception("Producer client hit error, triggering re-connect...")
-                mq_conn_status["producer"] = False
-                # Put the item back on the queue so we can push it when we reconnect
-                produce_queue.appendleft((topic, msg))
-                break
-
-        await asyncio.sleep(0.1)
-
-
-async def handle_file(msgs):
-    for msg in msgs:
-        try:
-            data = json.loads(msg.value)
-        except ValueError:
-            logger.error("handle_file(): unable to decode msg as json: {}".format(msg.value))
-            continue
-
-        if 'payload_id' not in data:
-            logger.error("payload_id not in message. Payload not removed from quarantine.")
-            return
-
-        if not data['url']:
-            logger.error('No URL in message. Cannot download payload')
-            return
-
-        tar_file = requests.get(data.pop('url'))
-
-        if tar_file.status_code != 200:
-            return
-
-        tempfile = NamedTemporaryFile(delete=False).name
-
-        try:
-            open(tempfile, 'wb').write(tar_file.content)
-
-            facts = await extract_facts(tempfile)
-
-            if facts:
-                url = await loop.run_in_executor(
-                    None, storage.copy, storage.QUARANTINE, storage.PERM, data['payload_id']
-                )
-                data['url'] = url
-
-                produce_queue.append(('platform.upload.result', data))
-                logger.info(
-                    "Data for payload_id [%s] put on produce queue (qsize: %d)",
-                    data['payload_id'], len(produce_queue)
-                )
-
-                await post_to_inventory(facts, data)
-
+        async with session.post(INVENTORY_URL, data=json.dumps(post), headers=headers) as response:
+            if response.status != 200:
+                logger.error('Failed to post to inventory: ' + await response.text())
             else:
-                url = await loop.run_in_executor(
-                    None, storage.copy, storage.QUARANTINE, storage.REJECT, data['payload_id']
-                )
-                logger.error('Payload failed tests. Rejected ID %s', data['payload_id'])
+                logger.info("payload posted to inventory: %s", data['payload_id'])
+                return await response.json()
+
+    async def validate(self, url):
+
+        temp = NamedTemporaryFile(delete=False).name
+
+        async with session.get(url) as response:
+            open(temp, 'wb').write(await response.read())
+
+        try:
+            return await extract_facts(temp)
         finally:
-            os.remove(tempfile)
+            os.remove(temp)
+
+    async def post(self):
+
+        data = json.loads(self.request.body)
+
+        result = {
+            "validation": "success",
+            "payload_id": data['payload_id'],
+        }
+
+        try:
+            facts = await self.validate(data['url'])
+        except Exception:
+            result["validation"] = "failure"
+
+        if facts:
+            inv = await self.post_to_inventory(facts, data)
+            result["id"] = inv['id']
+        else:
+            result["validation"] = "failure"
+
+        self.write(result)
+        self.set_status(202)
+
+
+class RootHandler(tornado.web.RequestHandler):
+    """Handles requests to root. Useful for health checks"""
+
+    def get(self):
+        self.write("lub-dub")
+
+
+endpoints = [
+    (r"/", RootHandler),
+    (r"/api/validate", ValidateHandler)
+]
+
+app = tornado.web.Application(endpoints)
 
 
 def main():
+    app.listen(LISTEN_PORT)
+    logger.info(f"Web server listening on port {LISTEN_PORT}")
+    loop = IOLoop.current()
+    loop.set_default_executor(thread_pool_executor)
     try:
-        loop.set_default_executor(thread_pool_executor)
-        loop.create_task(consumer())
-        loop.create_task(producer())
-        loop.run_forever()
+        loop.start()
     except KeyboardInterrupt:
         loop.stop()
 
