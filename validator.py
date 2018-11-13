@@ -102,6 +102,7 @@ class ValidateHandler(tornado.web.RequestHandler):
             facts = await self.validate(data['url'])
         except Exception:
             result["validation"] = "failure"
+            facts = None
 
         if facts:
             inv = await self.post_to_inventory(facts, data)
