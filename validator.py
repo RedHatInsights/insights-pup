@@ -1,26 +1,32 @@
 import logging
-import asyncio
 import os
 import json
 import base64
 import aiohttp
 import tornado
 import tornado.web
+import sys
 
 from tornado.ioloop import IOLoop
 from tempfile import NamedTemporaryFile
 
+from logstash_formatter import LogstashFormatterV1
 from concurrent.futures import ThreadPoolExecutor
-from tempfile import NamedTemporaryFile
 from insights import run, extract
 from insights.specs import Specs
 
 
 # Logging
-logging.basicConfig(
-    level=os.getenv("LOGLEVEL", "INFO"),
-    format="%(asctime)s %(threadName)s %(levelname)s -- %(message)s"
-)
+if any("KUBERNETES" in k for k in os.environ):
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(LogstashFormatterV1())
+    logging.root.setLevel(os.getenv("LOGLEVEL", "INFO"))
+    logging.root.addHandler(handler)
+else:
+    logging.basicConfig(
+        level=os.getenv("LOGLEVEL", "INFO"),
+        format="%(asctime)s %(threadName)s %(levelname)s -- %(message)s"
+    )
 logger = logging.getLogger('validator')
 
 # Maximum workers for threaded execution
