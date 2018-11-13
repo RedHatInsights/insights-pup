@@ -2,3 +2,4 @@ aiokafka
 tornado
 aiohttp
 insights-core
+logstash-formatter
