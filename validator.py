@@ -72,7 +72,7 @@ class ValidateHandler(tornado.web.RequestHandler):
                    'Content-Type': 'application/json'}
 
         async with session.post(INVENTORY_URL, data=json.dumps(post), headers=headers) as response:
-            if response.status != 200:
+            if response.status != 200 and response.status != 201:
                 logger.error('Failed to post to inventory: ' + await response.text())
             else:
                 logger.info("payload posted to inventory: %s", data['payload_id'])
