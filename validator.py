@@ -56,6 +56,7 @@ async def extract_facts(archive):
 
 
 session = aiohttp.ClientSession()
+REQUIRED_KEYS = set(["payload_id", "url", "rh_account", "principal"])
 
 
 class ValidateHandler(tornado.web.RequestHandler):
@@ -98,6 +99,13 @@ class ValidateHandler(tornado.web.RequestHandler):
             "payload_id": data['payload_id'],
         }
 
+        if set(data.keys()) != REQUIRED_KEYS:
+            result["validation"] = "failure"
+            result["reason"] = f"JSON keys must match {', '.join(REQUIRED_KEYS)}"
+            self.write(result)
+            self.set_status(400)
+            return
+
         try:
             facts = await self.validate(data['url'])
         except Exception:
@@ -106,9 +114,14 @@ class ValidateHandler(tornado.web.RequestHandler):
 
         if facts:
             inv = await self.post_to_inventory(facts, data)
-            result["id"] = inv['id']
+            if inv and "id" in inv:
+                result["id"] = inv["id"]
+            else:
+                result["validation"] = "failure"
+                result["reason"] = "Inventory service failure"
         else:
             result["validation"] = "failure"
+            result["reason"] = "No facts could be retrieved"
 
         self.write(result)
         self.set_status(202)
