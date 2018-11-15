@@ -109,7 +109,9 @@ Or using docker:
 
 The default environment variables should be acceptable for testing, though you may likely have to updat the `INVENTORY_URL` variable in order to point to your local inventory.
 
-    podman run -d pupp:latest --name pupp OR docker run -d pupp:latest --name pupp
+    podman run -d pupp:latest --name pupp
+    OR
+    docker run -d pupp:latest --name pupp
 
 ### Bare Metal
 
@@ -157,7 +159,7 @@ This test assumes you have an inventory service available and ready to use. Visi
 
 Use `curl` to post to the service and see if it all gets validated as expected. 
 
-    curl -vvvv -d '{"rh_account": "12345", "principal": "12345", "url": "http://localhost:8080/some-archive.tar.gz", "payload_id": "123134kjlk"}' localhost:8888/api/validate
+    curl -vvvv -d '{"rh_account": "12345", "principal": "12345", "url": "http://localhost:8081/some-archive.tar.gz", "payload_id": "123134kjlk"}' localhost:8080/api/validate
 
 You should also be able to check the inventory service that a host was updated/added. Use a base64 encoded header for `x-rh-identity` that looks like this when decoded: `{"identity": {"account_number": "12345", "org_id": 12345"}}`
 
