@@ -82,7 +82,7 @@ class ValidateHandler(tornado.web.RequestHandler):
                     return await response.json()
         except ClientConnectorError as e:
             logger.error("Unable to contact inventory: %s", e)
-            return {"error": "Unable to update to inventory"}
+            return {"error": "Unable to update inventory. Service unavailable."}
 
     async def validate(self, url):
 
