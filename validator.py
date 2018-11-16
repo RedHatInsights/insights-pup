@@ -9,6 +9,7 @@ import sys
 
 from tornado.ioloop import IOLoop
 from tempfile import NamedTemporaryFile
+from aiohttp.client_exceptions import ClientConnectorError
 
 from logstash_formatter import LogstashFormatterV1
 from concurrent.futures import ThreadPoolExecutor
@@ -71,12 +72,17 @@ class ValidateHandler(tornado.web.RequestHandler):
         headers = {'x-rh-identity': identity,
                    'Content-Type': 'application/json'}
 
-        async with session.post(INVENTORY_URL, data=json.dumps(post), headers=headers) as response:
-            if response.status != 200 and response.status != 201:
-                logger.error('Failed to post to inventory: ' + await response.text())
-            else:
-                logger.info("payload posted to inventory: %s", data['payload_id'])
-                return await response.json()
+
+        try:
+            async with session.post(INVENTORY_URL, data=json.dumps(post), headers=headers) as response:
+                if response.status != 200 and response.status != 201:
+                    logger.error('Failed to post to inventory: ' + await response.text())
+                else:
+                    logger.info("payload posted to inventory: %s", data['payload_id'])
+                    return await response.json()
+        except ClientConnectorError as e:
+            logger.error("Unable to contact inventory: %s", e)
+            return {"error": "Unable to update to inventory"}
 
     async def validate(self, url):
 
@@ -118,7 +124,7 @@ class ValidateHandler(tornado.web.RequestHandler):
                 result["id"] = inv["id"]
             else:
                 result["validation"] = "failure"
-                result["reason"] = "Inventory service failure"
+                result["reason"] = inv["error"]
         else:
             result["validation"] = "failure"
             result["reason"] = "No facts could be retrieved"
