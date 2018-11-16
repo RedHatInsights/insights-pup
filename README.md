@@ -1,16 +1,16 @@
 # Platform Upload Pre-Processor
 
-The Platform Upload Pre-Processor (PUPP) is designed to recieve payloads from the Insights Upload
+The Platform Upload Pre-Processor (PUP) is designed to recieve payloads from the Insights Upload
 service via HTTP POST, extract facts from the payload, forward the information to the inventory
 service, and finally respond to the upload service with the result.
 
 ## Details
 
-The PUPP service is a component of the Insights Platform that validates the payloads uploaded
+The PUP service is a component of the Insights Platform that validates the payloads uploaded
 to Red Hat by clients. The service is engaged after an upload has been recieved and stored in
 quarantine storage. It runs on Tornado 5 and Python 3.6.
 
-PUPP retrieves payloads via the URL in the POST from the upload service, processes it through
+PUP retrieves payloads via the URL in the POST from the upload service, processes it through
 the configured mechanism to extract needful information and guarantee integrity of the
 archive, and send the extracted info to the inventory service. The success/fail response is then
 returned to the upload service which responds to the originating client.
@@ -19,17 +19,17 @@ The service runs in Openshift Dedicated.
 
 ## How it Works
 
-The PUPP service workflow is as follows:
+The PUP service workflow is as follows:
 
   - The upload service sends a POST reflecting a new upload to be processed
   - The validator downloads the payload specified in the `url` key of the JSON
   - Insights Core is used to validate the tarfile and extract configurable facts from the archive
-  - PUPP sends a POST to the inventory service containing the facts using the identity from the original principal
+  - PUP sends a POST to the inventory service containing the facts using the identity from the original principal
   - If Inventory post succeeds, validator responds to upload service with a 202 status
 
 ### JSON
 
-The JSON expected by the PUPP service from the upload service looks like this:
+The JSON expected by the PUP service from the upload service looks like this:
 
 ```
 {"rh_account": "123456",
@@ -62,9 +62,9 @@ Fields:
   - url: The url from which the archive will be downloaded
   - canonical_facts: A dictionary containing canonical_facts to be passed to inventory
 
-Additional facts will also be included, but are configurable within the PUPP service. In the JSON above, `fqdn` and `insights-id` are examples of these additional facts.
+Additional facts will also be included, but are configurable within the PUP service. In the JSON above, `fqdn` and `insights-id` are examples of these additional facts.
   
-The PUPP service will respond to the upload service with a success/failure JSON or an error code if something goes wrong.
+The PUP service will respond to the upload service with a success/failure JSON or an error code if something goes wrong.
 
 Success example:
 
@@ -90,11 +90,11 @@ Any failures outside of the issues above will result in a 400 error sent back to
 
 A dockerfile is included with this repo for buiding the service using a container management tool (docker/buildah).
 
-    buildah bud -t pupp:latest .
+    buildah bud -t pup:latest .
 
 Or using docker:
 
-    docker build -t pupp:latest .
+    docker build -t pup:latest .
 
 #### Prerequisites
 
@@ -109,9 +109,9 @@ Or using docker:
 
 The default environment variables should be acceptable for testing, though you may likely have to updat the `INVENTORY_URL` variable in order to point to your local inventory.
 
-    podman run -d --name pupp -p 8080:8080 pupp:latest
+    podman run -d --name pup -p 8080:8080 pup:latest
     OR
-    docker run -d --name pupp -p 8080:8080 pupp:latest
+    docker run -d --name pup -p 8080:8080 pup:latest
 
 ### Bare Metal
 
@@ -167,11 +167,11 @@ You should also be able to check the inventory service that a host was updated/a
 
 ## Running with Tests
 
-TODO: There is currently no PUPP test suite
+TODO: There is currently no PUP test suite
 
 ## Deployment
 
-The PUPP service `master` branch has a webhook that notifies Openshift Dedicated cluster to build a new image in the `buildfactory` project. The image build will then trigger a redployment of the service in `Platform-CI`. If the image is tested valid and operation, it should be tagged to `Platform-QA` for further testing, then finally copied to the Production cluster and the `Platform-Prod` project.
+The PUP service `master` branch has a webhook that notifies Openshift Dedicated cluster to build a new image in the `buildfactory` project. The image build will then trigger a redployment of the service in `Platform-CI`. If the image is tested valid and operation, it should be tagged to `Platform-QA` for further testing, then finally copied to the Production cluster and the `Platform-Prod` project.
 
 ## Contributing
 
