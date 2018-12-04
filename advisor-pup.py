@@ -28,7 +28,7 @@ if any("KUBERNETES" in k for k in os.environ):
 else:
     logging.basicConfig(
         level=os.getenv("LOGLEVEL", "INFO"),
-        format="%(threadname)s %(levelname)s %(name)s - %(message)s"
+        format="%(threadName)s %(levelname)s %(name)s - %(message)s"
     )
 
 logger = logging.getLogger('advisor-pup')
@@ -49,9 +49,7 @@ PUP_QUEUE = os.getenv('PUP_QUEUE', 'platform.upload.pup')
 RETRY_INTERVAL = int(os.getenv('RETRY_INTERVAL', 5))  # seconds
 
 thread_pool_executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
-loop = asyncio.get_event_loop
-
-session = aiohttp.ClientSession()
+loop = asyncio.get_event_loop()
 
 
 class MQClient(object):
@@ -91,7 +89,7 @@ class MQClient(object):
 
 
 mqc = AIOKafkaConsumer(
-    PUP_QUEUE, loop=loop, bootstrap_server=MQ,
+    PUP_QUEUE, loop=loop, bootstrap_servers=MQ,
     group_id=MQ_GROUP_ID
 )
 mqp = AIOKafkaProducer(
@@ -103,7 +101,7 @@ CONSUMER = MQClient(mqc, "consumer")
 PRODUCER = MQClient(mqp, "producer")
 
 # local queue for pushing items into kafka, this queue fills up if kafka goes down
-produce_queue = collections.deque([], '999')
+produce_queue = collections.deque([], 999)
 
 
 async def consume(client):
@@ -165,8 +163,9 @@ async def validate(self, url):
 
     temp = NamedTemporaryFile(delete=False).name
 
-    async with session.get(url) as response:
-        open(temp, 'wb').write(await response.read())
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            open(temp, 'wb').write(await response.read())
 
     try:
         return await extract_facts(temp)
@@ -195,12 +194,13 @@ async def post_to_inventory(facts, msg):
                'Content-Type': 'application/json'}
 
     try:
-        async with session.post(INVENTORY_URL, data=json.dumps(post), headers=headers) as response:
-            if response.status != 200 and response.status != 201:
-                logger.error('Failed to post to inventory: ' + await response.text())
-            else:
-                logger.info("Payload posted to inventory: %s", msg['payload_id'])
-                return await response.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(INVENTORY_URL, data=json.dumps(post), headers=headers) as response:
+                if response.status != 200 and response.status != 201:
+                    logger.error('Failed to post to inventory: ' + await response.text())
+                else:
+                    logger.info("Payload posted to inventory: %s", msg['payload_id'])
+                    return await response.json()
     except ClientConnectionError as e:
         logger.error("Unable to contact inventory: %s", e)
         return {"error": "Unable to update inventory. Service unavailable"}
