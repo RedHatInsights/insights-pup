@@ -8,7 +8,7 @@ aiokafka = "*"
 insights-core = "*"
 aiohttp = "*"
 tornado = "*"
-lostash_formatter = "*"
+logstash_formatter = "*"
 
 [dev-packages]
 "flake8" = "*"
