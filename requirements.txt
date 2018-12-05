@@ -1,5 +1,5 @@
+idna<2.8
 aiokafka
-tornado
 aiohttp
 insights-core
 logstash-formatter
