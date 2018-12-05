@@ -108,6 +108,7 @@ async def consume(client):
     data = await client.getmany()
     for tp, msgs in data.items():
         if tp.topic == PUP_QUEUE:
+            logger.info("received messages: %s", msgs)
             await handle_file(msgs)
     await asyncio.sleep(0.1)
 
@@ -121,17 +122,19 @@ async def handle_file(msgs):
             logger.error("handle_file(): unable to decode msg as json: {}".format(msg.value))
             continue
 
+        logger.info(data)
         result = await validate(data['url'])
 
         if result:
-            response = post_to_inventory(result, data)
+            response = await post_to_inventory(result, data)
 
             produce_queue.append(
                 {
                     'topic': 'platform.upload.validation',
                     'msg': {'inventory': response,
                             'facts': result,
-                            'payload_id': data['payload_id']}
+                            'payload_id': data['payload_id'],
+                            'validation': 'failure'}
                 }
             )
         else:
@@ -159,7 +162,7 @@ async def send_result(client):
             raise
 
 
-async def validate(self, url):
+async def validate(url):
 
     temp = NamedTemporaryFile(delete=False).name
 
@@ -174,6 +177,7 @@ async def validate(self, url):
 
 
 async def extract_facts(archive):
+    logger.info("extracting facts from %s", archive)
     facts = {}
     with extract(archive) as ex:
         broker = run(root=ex.tmp_dir)
@@ -189,7 +193,7 @@ async def post_to_inventory(facts, msg):
     post['account'] = post.pop('rh_account')
     post['canonical_facts'] = {}
 
-    identity = base64.b64encode(str({'account': post['account'], 'org_id': msg['principal']}))
+    identity = base64.b64encode(json.dumps({'identity': {'account_number': post['account'], 'org_id': msg['principal']}}).encode()).decode()
     headers = {'x-rh-identity': identity,
                'Content-Type': 'application/json'}
 
@@ -213,8 +217,8 @@ async def post_to_inventory(facts, msg):
 def main():
     try:
         loop.set_default_executor(thread_pool_executor)
-        loop.create_task(CONSUMER.run(consume))
-        loop.create_task(PRODUCER.run(send_result))
+        loop.create_task(CONSUMER.run(consume)())
+        loop.create_task(PRODUCER.run(send_result)())
         loop.run_forever()
     except KeyboardInterrupt:
         loop.stop()
