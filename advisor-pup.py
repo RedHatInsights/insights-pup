@@ -131,7 +131,7 @@ async def handle_file(msgs):
             produce_queue.append(
                 {
                     'topic': 'platform.upload.validation',
-                    'msg': {'inventory': response,
+                    'msg': {'id': response['id'],
                             'facts': result,
                             'payload_id': data['payload_id'],
                             'validation': 'failure'}
