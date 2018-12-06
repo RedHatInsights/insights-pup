@@ -145,21 +145,25 @@ async def handle_file(msgs):
             )
 
 
-async def send_result(client):
-    if not produce_queue:
-        await asyncio.sleep(0.1)
-    else:
-        item = produce_queue.popleft()
-        topic, msg = item['topic'], item['msg']
-        logger.info(
-            "Popped item from produce queue (qsize: %d): topic %s: %s",
-            len(produce_queue), topic, msg
-        )
-        try:
-            await client.send_and_wait(topic, json.dumps(msg).encode("utf-8"))
-        except KafkaError:
-            produce_queue.appendleft(item)
-            raise
+def make_producer(queue=None):
+    queue = produce_queue if queue is None else queue
+
+    async def send_result(client):
+        if not produce_queue:
+            await asyncio.sleep(0.1)
+        else:
+            item = produce_queue.popleft()
+            topic, msg = item['topic'], item['msg']
+            logger.info(
+                "Popped item from produce queue (qsize: %d): topic %s: %s",
+                len(produce_queue), topic, msg
+            )
+            try:
+                await client.send_and_wait(topic, json.dumps(msg).encode("utf-8"))
+            except KafkaError:
+                produce_queue.append(item)
+                raise
+    return send_result
 
 
 async def validate(url):
@@ -218,7 +222,7 @@ def main():
     try:
         loop.set_default_executor(thread_pool_executor)
         loop.create_task(CONSUMER.run(consume)())
-        loop.create_task(PRODUCER.run(send_result)())
+        loop.create_task(PRODUCER.run(make_producer(produce_queue))())
         loop.run_forever()
     except KeyboardInterrupt:
         loop.stop()
