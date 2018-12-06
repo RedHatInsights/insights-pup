@@ -125,16 +125,16 @@ async def handle_file(msgs):
         logger.info(data)
         result = await validate(data['url'])
 
-        if result:
+        if result['machine-id'] != data['metadata'].get('machine-id'):
             response = await post_to_inventory(result, data)
-
+        elif result:
             produce_queue.append(
                 {
                     'topic': 'platform.upload.validation',
-                    'msg': {'id': response['id'],
+                    'msg': {'id': response['id'] if response else None,
                             'facts': result,
                             'payload_id': data['payload_id'],
-                            'validation': 'failure'}
+                            'validation': 'success'}
                 }
             )
         else:
