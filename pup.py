@@ -18,6 +18,7 @@ from kafka.errors import KafkaError
 
 from insights import run, extract
 from insights.specs import Specs
+from insights.core.archives import InvalidContentType
 
 # Logging
 if any("KUBERNETES" in k for k in os.environ):
@@ -126,10 +127,10 @@ async def handle_file(msgs):
         machine_id = data['metadata']['machine-id'] if data.get('metadata') else None
         result = await validate(data['url'])
 
-        if result['insights-id'] != machine_id:
-            response = await post_to_inventory(result, data)
+        if 'error' not in result:
+            if result['insights-id'] != machine_id:
+                response = await post_to_inventory(result, data)
         
-        if result:
             produce_queue.append(
                 {
                     'topic': 'platform.upload.validation',
@@ -140,10 +141,11 @@ async def handle_file(msgs):
                 }
             )
         else:
+            logger.info("Payload [%s] failed to validate with error: %s", data['payload_id'], result['error'])
             produce_queue.append(
                 {'topic': 'platform.upload.validation',
-                 'msg': {'payload_id': data['payload_id'],
-                         'validation': 'failure'}}
+                'msg': {'payload_id': data['payload_id'],
+                        'validation': 'failure'}}
             )
 
 
@@ -185,10 +187,13 @@ async def validate(url):
 async def extract_facts(archive):
     logger.info("extracting facts from %s", archive)
     facts = {}
-    with extract(archive) as ex:
-        broker = run(root=ex.tmp_dir)
-        for k, v in CANONICAL_FACTS.items():
-            facts[k] = ('\n'.join(broker[v].content))
+    try:
+        with extract(archive) as ex:
+            broker = run(root=ex.tmp_dir)
+            for k, v in CANONICAL_FACTS.items():
+                facts[k] = ('\n'.join(broker[v].content))
+    except (InvalidContentType, KeyError) as e:
+        facts['error'] = e.args[0]
 
     return facts
 
