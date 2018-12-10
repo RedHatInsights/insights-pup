@@ -134,8 +134,9 @@ async def handle_file(msgs):
             produce_queue.append(
                 {
                     'topic': 'platform.upload.validation',
-                    'msg': {'id': response['id'] if response else None,
+                    'msg': {'id': response.get('id') if response else None,
                             'facts': result,
+                            'service': data['service'],
                             'payload_id': data['payload_id'],
                             'validation': 'success'}
                 }
@@ -204,8 +205,7 @@ async def post_to_inventory(facts, msg):
     post['account'] = post.pop('rh_account')
     post['canonical_facts'] = {}
 
-    identity = base64.b64encode(json.dumps({'identity': {'account_number': post['account'], 'org_id': msg['principal']}}).encode()).decode()
-    headers = {'x-rh-identity': identity,
+    headers = {'x-rh-identity': post['b64_identity'],
                'Content-Type': 'application/json'}
 
     try:
