@@ -129,11 +129,11 @@ async def handle_file(msgs):
         result = await validate(data['url'])
 
         if 'error' not in result:
-            if result['insights-id'] != machine_id:
+            if result['insights_id'] != machine_id:
                 response = await post_to_inventory(result, data)
             else:
                 response = None
-        
+
             produce_queue.append(
                 {
                     'topic': 'platform.upload.validation',
