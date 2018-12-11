@@ -16,7 +16,8 @@ from concurrent.futures import ThreadPoolExecutor
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.errors import KafkaError
 
-from insights import run, extract
+from insights import extract
+from insights.util.canonical_facts import get_canonical_facts
 from insights.specs import Specs
 from insights.core.archives import InvalidContentType
 
@@ -192,9 +193,7 @@ async def extract_facts(archive):
     facts = {}
     try:
         with extract(archive) as ex:
-            broker = run(root=ex.tmp_dir)
-            for k, v in CANONICAL_FACTS.items():
-                facts[k] = ('\n'.join(broker[v].content))
+            facts = get_canonical_facts(path=ex.tmp_dir)
     except (InvalidContentType, KeyError) as e:
         facts['error'] = e.args[0]
 
@@ -205,7 +204,10 @@ async def post_to_inventory(facts, msg):
 
     post = {**facts, **msg}
     post['account'] = post.pop('rh_account')
-    post['canonical_facts'] = {}
+    post['facts'] = []
+    if post.get('metadata'):
+        post['facts'].append({'facts': post.pop('metadata'),
+                              'namespace': 'insights-client'})
 
     headers = {'x-rh-identity': post['b64_identity'],
                'Content-Type': 'application/json'}
