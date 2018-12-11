@@ -141,6 +141,8 @@ async def handle_file(msgs):
                             'facts': result,
                             'service': data['service'],
                             'payload_id': data['payload_id'],
+                            'account': data['account'],
+                            'principal': data['principal'],
                             'validation': 'success'}
                 }
             )
