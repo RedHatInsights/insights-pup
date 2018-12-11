@@ -124,12 +124,14 @@ async def handle_file(msgs):
             continue
 
         logger.info(data)
-        machine_id = data['metadata']['machine-id'] if data.get('metadata') else None
+        machine_id = data['metadata'].get('machine_id') if data.get('metadata') else None
         result = await validate(data['url'])
 
         if 'error' not in result:
             if result['insights-id'] != machine_id:
                 response = await post_to_inventory(result, data)
+            else:
+                response = None
         
             produce_queue.append(
                 {
