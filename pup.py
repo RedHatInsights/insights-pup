@@ -225,10 +225,6 @@ async def post_to_inventory(facts, msg):
         logger.error("Unable to contact inventory: %s", e)
         return {"error": "Unable to update inventory. Service unavailable"}
 
-    inv = requests.post(INVENTORY_URL, data=json.dumps(post), headers=headers)
-    if inv.status_code != 201:
-        logger.error('Failed to post to inventory: ' + inv.text)
-
 
 def main():
     try:
