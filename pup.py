@@ -143,6 +143,7 @@ async def handle_file(msgs):
                             'payload_id': data['payload_id'],
                             'account': data['account'],
                             'principal': data['principal'],
+                            'b64_identity': data.get('b64_identity'),
                             'validation': 'success'}
                 }
             )
