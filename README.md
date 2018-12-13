@@ -1,19 +1,18 @@
 # Platform Upload Pre-Processor
 
-The Platform Upload Pre-Processor (PUP) is designed to recieve payloads from the Insights Upload
-service via HTTP POST, extract facts from the payload, forward the information to the inventory
+The Platform Upload Pre-Processor (PUP) is designed to recieve payloads for the `advisor` service
+via the message queue, extract facts from the payload, forward the information to the inventory
 service, and finally respond to the upload service with the result.
 
 ## Details
 
 The PUP service is a component of the Insights Platform that validates the payloads uploaded
-to Red Hat by clients. The service is engaged after an upload has been recieved and stored in
-quarantine storage. It runs on Tornado 5 and Python 3.6.
+to Red Hat by the insights-client. The service is engaged after an upload has been recieved and stored in
+quarantine storage.
 
-PUP retrieves payloads via the URL in the POST from the upload service, processes it through
-the configured mechanism to extract needful information and guarantee integrity of the
-archive, and send the extracted info to the inventory service. The success/fail response is then
-returned to the upload service which responds to the originating client.
+PUP retrieves payloads via URL in the message, processes it through
+insights-core to extract facts and guarantee integrity of the archive, and send the extracted info to the inventory service. 
+The success/fail response is then returned to the upload service to indicate whether to keep or reject the archive.
 
 The service runs in Openshift Dedicated.
 
@@ -21,22 +20,25 @@ The service runs in Openshift Dedicated.
 
 The PUP service workflow is as follows:
 
-  - The upload service sends a POST reflecting a new upload to be processed
-  - The validator downloads the payload specified in the `url` key of the JSON
-  - Insights Core is used to validate the tarfile and extract configurable facts from the archive
-  - PUP sends a POST to the inventory service containing the facts using the identity from the original principal
-  - If Inventory post succeeds, validator responds to upload service with a 202 status
+  - Recieve a message from `platform.upload.advisor` topic in the MQ
+  - PUP downloads the archive from the url specified in the message
+  - Insights Core is engaged to open the tar file and extract the facts as determined by the `get_canonical_facts` method in insights-core
+  - PUP sends a post to inventory containing those facts using the identity of the original uploader
+  - If inventory post succeeds, the host ID is added to the return validation message
+  - The validation message is sent back to the upload service via the `platform.upload.validation` queue
 
 ### JSON
 
 The JSON expected by the PUP service from the upload service looks like this:
 
 ```
-{"rh_account": "123456",
+{"account": "123456",
  "principal": "test_org",
  "payload_id": "23oikjonsdv329",
  "size": 234,
  "service": "advisor",
+ "b64_identity": "<some big base64 string>",
+ "metadata": "{'some_key': 'some_value'}, # optional
  "url": "http://some.bucket.somewhere/1234"}
 ```
 
@@ -44,27 +46,30 @@ The JSON POSTed to the inventory service will be what is above, but also include
 
 ```
 ...
-"canonical_facts": {},
-"fqdn": "some.host.name",
-"insights-id": "asdf-we23-dcw-2342fdwc"}
+"facts": [{'facts': {"insights_id": "a756b571-e227-46a5-8bcc-3a567b7edfb1",
+                    "machine_id": null,
+                    "bios_uuid": null,
+                    "subscription_manager_id": null,
+                    "ip_addresses": [],
+                    "mac_addresses": [],
+                    "fqdn": "Z0JTXJ7YSG.test"}
+            'namespace': 'insights-client'}]
 ```
 
-**The above facts are configurable and may be added or taken away. The README should be updated to reflect those
+**The above facts are managed by the [insights-core](https://www.github.com/RedHatInsights/insights-core) project and may be added or taken away. The README should be updated to reflect those
 changes**
 
 Fields:
 
-  - rh_account: The account number used to upload. Will be modified to `account_number` when posting to inventory
+  - account: The account number used to upload. Will be modified to `account_number` when posting to inventory
   - principal: The upload org_id. Will be modified to `org_id` when posting to inventory
   - payload_id: The ID of the individual uploaded archive
   - size: Size of the payload in bytes
   - service: The service name as provided by the MIME type. 
   - url: The url from which the archive will be downloaded
-  - canonical_facts: A dictionary containing canonical_facts to be passed to inventory
-
-Additional facts will also be included, but are configurable within the PUP service. In the JSON above, `fqdn` and `insights-id` are examples of these additional facts.
+  - facts: An array containing facts for each host
   
-The PUP service will respond to the upload service with a success/failure JSON or an error code if something goes wrong.
+The PUP service will respond to the upload service with a message on the message queue regarding success or failure.
 
 Success example:
 
@@ -72,19 +77,7 @@ Success example:
 
 Failure example:
 
-    {"validation": "failure", "payload_id": "23oikjonsdv329", "reason": "Inventory service failure"}
-
-Available reasons for failure:
-
-  - Inventory service failure
-  - No facts could be retrieved
-  - JSON keys must match ${REQUIRED KEYS}  
-  
-The "JSON keys must match.." failure results if `payload_id`, `url`, `rh_account`, or `principal` is missing.
-
-### Errors
-
-Any failures outside of the issues above will result in a 400 error sent back to the upload service. This will then need to be relayed back to the client
+    {"validation": "failure", "payload_id": "23oikjonsdv329"}
 
 ### Containers
 
@@ -124,7 +117,7 @@ It's possible to run this app locally without engaging containers if you would l
 
 #### Python
 
-Create a virtualenv using either venv or pipenv and install requirements. Once complete you can start the app by running `validator.py`
+Create a virtualenv using either venv or pipenv and install requirements. Once complete you can start the app by running `pup.py`
 
     virtualenv . -p $(which python3)
     source bin/activate
@@ -133,37 +126,25 @@ Create a virtualenv using either venv or pipenv and install requirements. Once c
 Or using pipenv:
 
     pipenv install
-    pipenv run ./validator.py
+    pipenv run ./pup.py
 
 #### Running
 
 Activate your virtual environment and run the validator
 
     source bin/activate
-    python ./validator.py
+    python ./pup.py
 
 Or with pipenv:
 
-    pipenv run ./validator.py
-
-#### Archive test location
-
-One of the simplest ways to create a URL containing your example insights archive is using the nginx container.
-Place an archive in a directory (`/home/user/something`) and then run an nginx server there. You may have to update your selinux context for the directory in order for it to mount properly. Substitute docker for podman if that's your jam.
-
-    podman run -d -v /home/user/something:/usr/share/nginx/html:ro -p 8081:80 --name nginx nginx
+    pipenv run ./pup.py
 
 ## File Processing
 
+The best way to test is by standing up this server and incorporating it with the upload-service. The [insights-upload](https://www.github.com/RedHatInsights/insights-upload) repo has a docker-compose that will get you most of the way there. Other details regarding
+posting your archive to the service can be found in that readme.
+
 This test assumes you have an inventory service available and ready to use. Visit the `insights-host-inventory` repo for those instructions. 
-
-Use `curl` to post to the service and see if it all gets validated as expected. 
-
-    curl -vvvv -d '{"rh_account": "12345", "principal": "12345", "url": "http://localhost:8081/some-archive.tar.gz", "payload_id": "123134kjlk"}' localhost:8080/api/validate
-
-**NOTE** Your nginx IP may not resolve to localhost. Use `docker/podman inspect nginx | grep IP` to get the IP address to use in place
-
-You should also be able to check the inventory service that a host was updated/added. Use a base64 encoded header for `x-rh-identity` that looks like this when decoded: `{"identity": {"account_number": "12345", "org_id": 12345"}}`
 
 ## Running with Tests
 
@@ -172,6 +153,19 @@ TODO: There is currently no PUP test suite
 ## Deployment
 
 The PUP service `master` branch has a webhook that notifies Openshift Dedicated cluster to build a new image in the `buildfactory` project. The image build will then trigger a redployment of the service in `Platform-CI`. If the image is tested valid and operation, it should be tagged to `Platform-QA` for further testing, then finally copied to the Production cluster and the `Platform-Prod` project.
+
+The commands for that process are as follows:
+
+    ===In insights-dev cluster===
+    oc tag platform-ci/insights-validator:latest platform-qa/insights-validator:latest
+    
+    ===Copy to production cluster===
+    skopeo copy --src-creds=user:dev_login_token --dest-creds=user:prod_login_token \
+    docker://registry.insights-dev.openshift.com/platform-qa/insights-validator:latest \
+    docker://registry.insights.openshift.com/platform-stage/insights-validator:latest
+
+    ===In insights production cluster===
+    oc tag platform-stage/insights-validator:latest platform-prod/insights-validator:latest
 
 ## Contributing
 
