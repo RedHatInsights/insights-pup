@@ -19,7 +19,7 @@ from kafka.errors import KafkaError
 from insights import extract
 from insights.util.canonical_facts import get_canonical_facts
 from insights.specs import Specs
-from insights.core.archives import InvalidContentType
+from insights.core.archives import InvalidArchive
 
 # Logging
 if any("KUBERNETES" in k for k in os.environ):
@@ -197,7 +197,7 @@ async def extract_facts(archive):
     try:
         with extract(archive) as ex:
             facts = get_canonical_facts(path=ex.tmp_dir)
-    except (InvalidContentType, KeyError) as e:
+    except (InvalidArchive, KeyError) as e:
         facts['error'] = e.args[0]
 
     return facts
