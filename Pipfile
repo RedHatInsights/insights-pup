@@ -9,6 +9,8 @@ insights-core = "*"
 aiohttp = "*"
 tornado = "*"
 logstash_formatter = "*"
+kafkahelpers = "*"
+flake8 = "*"
 
 [dev-packages]
 "flake8" = "*"

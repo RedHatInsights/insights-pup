@@ -3,3 +3,4 @@ aiokafka
 aiohttp
 insights-core
 logstash-formatter
+kafkahelpers
