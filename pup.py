@@ -194,8 +194,8 @@ async def post_to_inventory(facts, msg):
 def main():
     try:
         loop.set_default_executor(thread_pool_executor)
-        loop.create_task(CONSUMER.run(consume)())
-        loop.create_task(PRODUCER.run(make_producer(produce_queue))())
+        loop.create_task(CONSUMER.get_callback(consume)())
+        loop.create_task(PRODUCER.get_callback(make_producer(produce_queue))())
         loop.run_forever()
     except KeyboardInterrupt:
         loop.stop()
