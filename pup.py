@@ -2,8 +2,6 @@ import logging
 import os
 import sys
 import asyncio
-import base64
-import requests
 import collections
 import json
 
@@ -15,6 +13,7 @@ from logstash_formatter import LogstashFormatterV1
 from concurrent.futures import ThreadPoolExecutor
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.errors import KafkaError
+from kafkahelpers import ReconnectingClient
 
 from insights import extract
 from insights.util.canonical_facts import get_canonical_facts
@@ -53,54 +52,17 @@ RETRY_INTERVAL = int(os.getenv('RETRY_INTERVAL', 5))  # seconds
 thread_pool_executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 loop = asyncio.get_event_loop()
 
-
-class MQClient(object):
-
-    def __init__(self, client, name):
-        self.client = client
-        self.name = name
-        self.connected = False
-
-    def __str__(self):
-        return f"MQClient {self.name} {self.client} {'connected' if self.connected else 'disconnected'}"
-
-    async def start(self):
-        while not self.connected:
-            try:
-                logger.info("Attempting to connect %s client.", self.name)
-                await self.client.start()
-                logger.info("%s client connected successfully.", self.name)
-                self.connected = True
-            except KafkaError:
-                logger.exception("Failed to connect %s client, retrying in %d seconds.", self.name, RETRY_INTERVAL)
-                await asyncio.sleep(RETRY_INTERVAL)
-
-    async def work(self, worker):
-        try:
-            await worker(self.client)
-        except KafkaError:
-            logger.exception("Encountered exception while working %s client, reconnecting.", self.name)
-            self.connected = False
-
-    def run(self, worker):
-        async def _f():
-            while True:
-                await self.start()
-                await self.work(worker)
-        return _f
-
-
-mqc = AIOKafkaConsumer(
+kafka_consumer = AIOKafkaConsumer(
     PUP_QUEUE, loop=loop, bootstrap_servers=MQ,
     group_id=MQ_GROUP_ID
 )
-mqp = AIOKafkaProducer(
+kafka_producer = AIOKafkaProducer(
     loop=loop, bootstrap_servers=MQ, request_timeout_ms=10000,
     connections_max_idle_ms=None
 )
 
-CONSUMER = MQClient(mqc, "consumer")
-PRODUCER = MQClient(mqp, "producer")
+CONSUMER = ReconnectingClient(kafka_consumer, "consumer")
+PRODUCER = ReconnectingClient(kafka_producer, "producer")
 
 # local queue for pushing items into kafka, this queue fills up if kafka goes down
 produce_queue = collections.deque([], 999)
