@@ -15,6 +15,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.errors import KafkaError
 from kafkahelpers import ReconnectingClient
 
+from utils import mnm
 from insights import extract
 from insights.util.canonical_facts import get_canonical_facts
 from insights.specs import Specs
@@ -88,6 +89,7 @@ async def handle_file(msgs):
 
         logger.info(data)
         machine_id = data['metadata'].get('machine_id') if data.get('metadata') else None
+        mnm.total.inc()
         result = await validate(data['url'])
 
         if 'error' not in result:
@@ -96,6 +98,7 @@ async def handle_file(msgs):
             else:
                 response = None
 
+            mnm.valid.inc()
             produce_queue.append(
                 {
                     'topic': 'platform.upload.validation',
@@ -110,6 +113,7 @@ async def handle_file(msgs):
                 }
             )
         else:
+            mnm.invalid.inc()
             logger.info("Payload [%s] failed to validate with error: %s", data['payload_id'], result['error'])
             produce_queue.append(
                 {'topic': 'platform.upload.validation',
@@ -182,8 +186,10 @@ async def post_to_inventory(facts, msg):
         async with aiohttp.ClientSession() as session:
             async with session.post(INVENTORY_URL, data=json.dumps(post), headers=headers, timeout=timeout) as response:
                 if response.status != 200 and response.status != 201:
+                    mnm.inventory_post_failure.inc()
                     logger.error('Failed to post to inventory: ' + await response.text())
                 else:
+                    mnm.inventory_post_success.inc()
                     logger.info("Payload posted to inventory: %s", msg['payload_id'])
                     return await response.json()
     except ClientConnectionError as e:
@@ -193,6 +199,7 @@ async def post_to_inventory(facts, msg):
 
 def main():
     try:
+        mnm.start_http_server(port=9126)
         loop.set_default_executor(thread_pool_executor)
         loop.create_task(CONSUMER.get_callback(consume)())
         loop.create_task(PRODUCER.get_callback(make_producer(produce_queue))())
