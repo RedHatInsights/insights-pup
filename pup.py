@@ -143,6 +143,7 @@ def make_producer(queue=None):
     return send_result
 
 
+@mnm.validation_time.time()
 async def validate(url):
 
     temp = NamedTemporaryFile(delete=False).name
@@ -168,7 +169,7 @@ async def extract_facts(archive):
 
     return facts
 
-
+@mnm.inventory_post_time.time()
 async def post_to_inventory(facts, msg):
 
     post = {**facts, **msg}
