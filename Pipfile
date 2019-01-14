@@ -11,6 +11,7 @@ tornado = "*"
 logstash_formatter = "*"
 kafkahelpers = "*"
 flake8 = "*"
+prometheus-client = "*"
 
 [dev-packages]
 "flake8" = "*"
