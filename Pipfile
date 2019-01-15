@@ -12,6 +12,7 @@ logstash_formatter = "*"
 kafkahelpers = "*"
 flake8 = "*"
 prometheus-client = "*"
+prometheus-async = "*"
 
 [dev-packages]
 "flake8" = "*"
