@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.errors import KafkaError
 from kafkahelpers import ReconnectingClient
+from prometheus_async.aio import time
 
 from utils import mnm
 from insights import extract
@@ -143,7 +144,7 @@ def make_producer(queue=None):
     return send_result
 
 
-@mnm.validation_time.time()
+@time(mnm.validation_time)
 async def validate(url):
 
     temp = NamedTemporaryFile(delete=False).name
@@ -169,7 +170,7 @@ async def extract_facts(archive):
 
     return facts
 
-@mnm.inventory_post_time.time()
+@time(mnm.inventory_post_time)
 async def post_to_inventory(facts, msg):
 
     post = {**facts, **msg}
