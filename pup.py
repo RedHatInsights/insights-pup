@@ -165,7 +165,7 @@ async def extract_facts(archive):
     try:
         with extract(archive) as ex:
             facts = get_canonical_facts(path=ex.tmp_dir)
-    except (InvalidArchive, KeyError) as e:
+    except (InvalidArchive, ModuleNotFoundError, KeyError) as e:
         facts['error'] = e.args[0]
 
     return facts
