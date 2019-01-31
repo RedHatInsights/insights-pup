@@ -60,8 +60,6 @@ def get_commit_date(commit_id):
     return response['committer']['date']
 
 
-mnm.upload_service_version.info({"version": BUILD_ID, "date": get_commit_date(BUILD_ID)})
-
 thread_pool_executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 loop = asyncio.get_event_loop()
 
@@ -223,4 +221,6 @@ def main():
 
 
 if __name__ == "__main__":
+    date = get_commit_date(BUILD_ID)
+    mnm.upload_service_version.info({"version": BUILD_ID, "date": date})
     main()
