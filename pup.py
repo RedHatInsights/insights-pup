@@ -4,7 +4,7 @@ import sys
 import asyncio
 import collections
 import json
-
+import requests
 import aiohttp
 
 from tempfile import NamedTemporaryFile
@@ -44,12 +44,23 @@ CANONICAL_FACTS = {
     'fqdn': Specs.hostname
 }
 
+BUILD_ID = os.getenv('OPENSHIFT_BUILD_COMMIT', 'somemadeupvalue')
+
 INVENTORY_URL = os.getenv('INVENTORY_URL', 'http://inventory:5000/api/hosts')
 
 MQ = os.getenv('KAFKAMQ', 'kafka:29092').split(',')
 MQ_GROUP_ID = os.getenv('MQ_GROUP_ID', 'advisor-pup')
 PUP_QUEUE = os.getenv('PUP_QUEUE', 'platform.upload.pup')
 RETRY_INTERVAL = int(os.getenv('RETRY_INTERVAL', 5))  # seconds
+
+
+def get_commit_date(commit_id):
+    url = "https://api.github.com/repos/RedHatInsights/insights-pup/git/commits/" + commit_id
+    response = requests.get(url).json()
+    return response['committer']['date']
+
+
+mnm.upload_service_version.info({"version": BUILD_ID, "date": get_commit_date(BUILD_ID)})
 
 thread_pool_executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 loop = asyncio.get_event_loop()
@@ -118,8 +129,8 @@ async def handle_file(msgs):
             logger.info("Payload [%s] failed to validate with error: %s", data['payload_id'], result['error'])
             produce_queue.append(
                 {'topic': 'platform.upload.validation',
-                'msg': {'payload_id': data['payload_id'],
-                        'validation': 'failure'}}
+                 'msg': {'payload_id': data['payload_id'],
+                         'validation': 'failure'}}
             )
 
 
@@ -169,6 +180,7 @@ async def extract_facts(archive):
         facts['error'] = e.args[0]
 
     return facts
+
 
 @time(mnm.inventory_post_time)
 async def post_to_inventory(facts, msg):
