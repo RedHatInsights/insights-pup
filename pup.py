@@ -8,7 +8,7 @@ import json
 import aiohttp
 
 from tempfile import NamedTemporaryFile
-from aiohttp.client_exceptions import ClientConnectionError
+from aiohttp.client_exceptions import ClientConnectionError, ServerDisconnectedError
 from logstash_formatter import LogstashFormatterV1
 from concurrent.futures import ThreadPoolExecutor
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -91,7 +91,11 @@ async def handle_file(msgs):
         logger.info(data)
         machine_id = data['metadata'].get('machine_id') if data.get('metadata') else None
         mnm.total.inc()
-        result = await validate(data['url'])
+        try:
+            result = await validate(data['url'])
+        except ServerDisconnectedError:
+            logger.error('Connection to S3 Failed')
+            continue
 
         if 'error' not in result:
             if result['insights_id'] != machine_id:
@@ -118,8 +122,8 @@ async def handle_file(msgs):
             logger.info("Payload [%s] failed to validate with error: %s", data['payload_id'], result['error'])
             produce_queue.append(
                 {'topic': 'platform.upload.validation',
-                'msg': {'payload_id': data['payload_id'],
-                        'validation': 'failure'}}
+                 'msg': {'payload_id': data['payload_id'],
+                         'validation': 'failure'}}
             )
 
 
