@@ -8,7 +8,7 @@ import requests
 import aiohttp
 
 from tempfile import NamedTemporaryFile
-from aiohttp.client_exceptions import ClientConnectionError
+from aiohttp.client_exceptions import ClientConnectionError, ServerDisconnectedError
 from logstash_formatter import LogstashFormatterV1
 from concurrent.futures import ThreadPoolExecutor
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -100,7 +100,11 @@ async def handle_file(msgs):
         logger.info(data)
         machine_id = data['metadata'].get('machine_id') if data.get('metadata') else None
         mnm.total.inc()
-        result = await validate(data['url'])
+        try:
+            result = await validate(data['url'])
+        except ServerDisconnectedError:
+            logger.error('Connection to S3 Failed')
+            continue
 
         if 'error' not in result:
             if result['insights_id'] != machine_id:
