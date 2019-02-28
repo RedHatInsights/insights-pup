@@ -39,12 +39,7 @@ logger = logging.getLogger('advisor-pup')
 # Maxium workers for threaded execution
 MAX_WORKERS = int(os.getenv('MAX_WORKERS', 50))
 
-CANONICAL_FACTS = {
-    'insights-id': Specs.machine_id,
-    'fqdn': Specs.hostname
-}
-
-BUILD_ID = os.getenv('OPENSHIFT_BUILD_COMMIT', 'somemadeupvalue')
+BUILD_ID = os.getenv('OPENSHIFT_BUILD_COMMIT')
 
 INVENTORY_URL = os.getenv('INVENTORY_URL', 'http://inventory:5000/api/hosts')
 
@@ -52,6 +47,8 @@ MQ = os.getenv('KAFKAMQ', 'kafka:29092').split(',')
 MQ_GROUP_ID = os.getenv('MQ_GROUP_ID', 'advisor-pup')
 PUP_QUEUE = os.getenv('PUP_QUEUE', 'platform.upload.pup')
 RETRY_INTERVAL = int(os.getenv('RETRY_INTERVAL', 5))  # seconds
+
+DEVMODE = os.getenv('DEVMODE', False)
 
 
 def get_commit_date(commit_id):
@@ -241,6 +238,9 @@ def main():
 
 
 if __name__ == "__main__":
-    date = get_commit_date(BUILD_ID)
+    if DEVMODE:
+        date = 'devmode'
+    else:
+        date = get_commit_date(BUILD_ID)
     mnm.upload_service_version.info({"version": BUILD_ID, "date": date})
     main()
