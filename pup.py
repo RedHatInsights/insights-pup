@@ -17,10 +17,7 @@ from kafkahelpers import ReconnectingClient
 from prometheus_async.aio import time
 
 from utils import mnm
-from insights import extract
-from insights.util.canonical_facts import get_canonical_facts
-from insights.specs import Specs
-from insights.core.archives import InvalidArchive
+from utils.fact_extract import extract_facts
 
 # Logging
 if any("KUBERNETES" in k for k in os.environ):
@@ -181,18 +178,6 @@ async def validate(url):
         return await extract_facts(temp)
     finally:
         os.remove(temp)
-
-
-async def extract_facts(archive):
-    logger.info("extracting facts from %s", archive)
-    facts = {}
-    try:
-        with extract(archive) as ex:
-            facts = get_canonical_facts(path=ex.tmp_dir)
-    except (InvalidArchive, ModuleNotFoundError, KeyError) as e:
-        facts['error'] = e.args[0]
-
-    return facts
 
 
 @time(mnm.inventory_post_time)
