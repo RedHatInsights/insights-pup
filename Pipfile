@@ -15,7 +15,9 @@ prometheus-client = "*"
 prometheus-async = "*"
 
 [dev-packages]
-"flake8" = "*"
+flake8 = "*"
+nose = "*"
+responses = "*"
 
 [requires]
 python_version = "3.6"

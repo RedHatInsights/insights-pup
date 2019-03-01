@@ -4,7 +4,6 @@ import sys
 import asyncio
 import collections
 import json
-import requests
 import aiohttp
 
 from tempfile import NamedTemporaryFile
@@ -18,6 +17,7 @@ from prometheus_async.aio import time
 
 from utils import mnm
 from utils.fact_extract import extract_facts
+from utils.get_commit_date import get_commit_date
 
 # Logging
 if any("KUBERNETES" in k for k in os.environ):
@@ -46,12 +46,6 @@ PUP_QUEUE = os.getenv('PUP_QUEUE', 'platform.upload.pup')
 RETRY_INTERVAL = int(os.getenv('RETRY_INTERVAL', 5))  # seconds
 
 DEVMODE = os.getenv('DEVMODE', False)
-
-
-def get_commit_date(commit_id):
-    url = "https://api.github.com/repos/RedHatInsights/insights-pup/git/commits/" + commit_id
-    response = requests.get(url).json()
-    return response['committer']['date']
 
 
 thread_pool_executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)

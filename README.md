@@ -171,6 +171,10 @@ The commands for that process are as follows:
 
 All outstanding issues or feature requests should be filed as Issues on this Github repo. PRs should be submitted against the master branch for any features or changes.
 
+## Running unit tests
+
+To run unit tests, run `nosetests`.
+
 ## Versioning
 
 Anytime an endpoint is modified, the version should be incremented by `0.1`. New functionality that may effect other services should increment by `1`. Minor features and bugfixes can increment by `0.0.1`
