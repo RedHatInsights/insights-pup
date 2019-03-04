@@ -15,14 +15,14 @@ pipeline {
     stage('code-check') {
       steps {
         echo "Checking code with flake8"
-        sh 'flake8'
+        sh '/bin/python36 -m flake8'
       }
     }
 
     stage('unit-tests') {
       steps {
         echo "Running Nosetests"
-        sh 'python -m nose'
+        sh '/bin/python36 -m nose'
       }
     }
   }
