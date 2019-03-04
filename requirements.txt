@@ -77,4 +77,5 @@ wrapt==1.10.11
 xmltodict==0.11.0
 yarl==1.3.0
 prometheus_async
+nose
 responses
