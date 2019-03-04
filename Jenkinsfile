@@ -22,7 +22,7 @@ pipeline {
     stage('unit-tests') {
       steps {
         echo "Running Nosetests"
-        sh 'nosetests'
+        sh 'python -m nose'
       }
     }
   }
