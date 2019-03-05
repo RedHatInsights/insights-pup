@@ -173,7 +173,7 @@ All outstanding issues or feature requests should be filed as Issues on this Git
 
 ## Running unit tests
 
-To run unit tests, run `nosetests`.
+To run unit tests, run `nosetests --with-coverage --cover-package=pup`.
 
 ## Versioning
 

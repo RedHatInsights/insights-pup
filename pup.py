@@ -15,9 +15,9 @@ from kafka.errors import KafkaError
 from kafkahelpers import ReconnectingClient
 from prometheus_async.aio import time
 
-from utils import mnm
-from utils.fact_extract import extract_facts
-from utils.get_commit_date import get_commit_date
+from pup.utils import mnm, configuration
+from pup.utils.fact_extract import extract_facts
+from pup.utils.get_commit_date import get_commit_date
 
 # Logging
 if any("KUBERNETES" in k for k in os.environ):
@@ -33,30 +33,16 @@ else:
 
 logger = logging.getLogger('advisor-pup')
 
-# Maxium workers for threaded execution
-MAX_WORKERS = int(os.getenv('MAX_WORKERS', 50))
 
-BUILD_ID = os.getenv('OPENSHIFT_BUILD_COMMIT')
-
-INVENTORY_URL = os.getenv('INVENTORY_URL', 'http://inventory:5000/api/hosts')
-
-MQ = os.getenv('KAFKAMQ', 'kafka:29092').split(',')
-MQ_GROUP_ID = os.getenv('MQ_GROUP_ID', 'advisor-pup')
-PUP_QUEUE = os.getenv('PUP_QUEUE', 'platform.upload.pup')
-RETRY_INTERVAL = int(os.getenv('RETRY_INTERVAL', 5))  # seconds
-
-DEVMODE = os.getenv('DEVMODE', False)
-
-
-thread_pool_executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
+thread_pool_executor = ThreadPoolExecutor(max_workers=configuration.MAX_WORKERS)
 loop = asyncio.get_event_loop()
 
 kafka_consumer = AIOKafkaConsumer(
-    PUP_QUEUE, loop=loop, bootstrap_servers=MQ,
-    group_id=MQ_GROUP_ID
+    configuration.PUP_QUEUE, loop=loop, bootstrap_servers=configuration.MQ,
+    group_id=configuration.MQ_GROUP_ID
 )
 kafka_producer = AIOKafkaProducer(
-    loop=loop, bootstrap_servers=MQ, request_timeout_ms=10000,
+    loop=loop, bootstrap_servers=configuration.MQ, request_timeout_ms=10000,
     connections_max_idle_ms=None
 )
 
@@ -70,7 +56,7 @@ produce_queue = collections.deque([], 999)
 async def consume(client):
     data = await client.getmany()
     for tp, msgs in data.items():
-        if tp.topic == PUP_QUEUE:
+        if tp.topic == configuration.PUP_QUEUE:
             logger.info("received messages: %s", msgs)
             await handle_file(msgs)
     await asyncio.sleep(0.1)
@@ -194,7 +180,7 @@ async def post_to_inventory(facts, msg):
     try:
         timeout = aiohttp.ClientTimeout(total=60)
         async with aiohttp.ClientSession() as session:
-            async with session.post(INVENTORY_URL, data=json.dumps(post), headers=headers, timeout=timeout) as response:
+            async with session.post(configuration.INVENTORY_URL, data=json.dumps(post), headers=headers, timeout=timeout) as response:
                 if response.status != 200 and response.status != 201:
                     mnm.inventory_post_failure.inc()
                     logger.error(
@@ -221,9 +207,9 @@ def main():
 
 
 if __name__ == "__main__":
-    if DEVMODE:
+    if configuration.DEVMODE:
         date = 'devmode'
     else:
-        date = get_commit_date(BUILD_ID)
-    mnm.upload_service_version.info({"version": BUILD_ID, "date": date})
+        date = get_commit_date(configuration.BUILD_ID)
+    mnm.upload_service_version.info({"version": configuration.BUILD_ID, "date": date})
     main()
