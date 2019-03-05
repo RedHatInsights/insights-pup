@@ -73,9 +73,9 @@ def system_profile_facts(hostname, lscpu, virt_what, meminfo, ips, dmidecode, re
 
 
 def _get_virt_phys_fact(virt_what):
-    if virt_what.is_virtual:
+    if getattr(virt_what, 'is_virtual', False):
         return 'virtual'
-    elif virt_what.is_physical:
+    elif getattr(virt_what, 'is_physical', False):
         return 'physical'
     else:
         return None
