@@ -91,7 +91,7 @@ async def handle_file(msgs):
             data_to_produce = {
                 'topic': 'platform.upload.validation',
                 'msg': {
-                    'id': response.get('id') if response else None,
+                    'id': response['data'][0].get('id') if response else None,
                     'facts': result,
                     'service': data['service'],
                     'payload_id': data['payload_id'],
