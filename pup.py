@@ -90,7 +90,7 @@ async def handle_file(msgs):
         mnm.total.inc()
         try:
             result = await validate(data['url'])
-        except ServerDisconnectedError:
+        except (ServerDisconnectedError, ClientConnectionError):
             logger.error('Connection to S3 Failed')
             continue
 
