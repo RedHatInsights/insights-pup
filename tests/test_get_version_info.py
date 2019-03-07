@@ -2,10 +2,10 @@ import requests
 import responses
 import unittest
 
-from pup.utils.get_commit_date import get_commit_date
+from pup.utils.get_version_info import get_commit_date
 
 
-class GetCommitDateTests(unittest.TestCase):
+class GetVersionInfoTests(unittest.TestCase):
 
     @responses.activate
     def test_get_commit_date(self):
