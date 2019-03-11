@@ -181,6 +181,9 @@ async def post_to_inventory(facts, msg):
         timeout = aiohttp.ClientTimeout(total=60)
         async with aiohttp.ClientSession() as session:
             async with session.post(configuration.INVENTORY_URL, data=json.dumps([post]), headers=headers, timeout=timeout) as response:
+                if response.status != 207:
+                    error = response.json().get('detail')
+                    logger.error('Failed to post to inventory: %s', error)
                 response_json = await response.json()
                 if response_json['data'][0]['status'] != 200 and response_json['data'][0]['status'] != 201:
                     mnm.inventory_post_failure.inc()
