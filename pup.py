@@ -91,7 +91,7 @@ async def handle_file(msgs):
             data_to_produce = {
                 'topic': 'platform.upload.validation',
                 'msg': {
-                    'id': response['data'][0].get('id') if response else None,
+                    'id': response.get('id') if response else None,
                     'facts': result,
                     'service': data['service'],
                     'payload_id': data['payload_id'],
@@ -192,8 +192,10 @@ async def post_to_inventory(facts, msg):
                     )
                 else:
                     mnm.inventory_post_success.inc()
-                    logger.info("payload_id [%s] posted to inventory", msg['payload_id'])
-                    return await response.json()
+                    logger.info("payload_id [%s] posted to inventory: ID [%s]",
+                                msg['payload_id'],
+                                response_json['data'][0]['host']['id'])
+                    return response_json['data'][0]['host']
     except ClientConnectionError as e:
         logger.error("payload_id [%s] failed to post to inventory, unable to connect: %s", msg['payload_id'], e)
         return {"error": "Unable to update inventory. Service unavailable"}
