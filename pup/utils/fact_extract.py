@@ -7,6 +7,7 @@ from insights.util.subproc import CalledProcessError
 
 from insights.core.archives import InvalidArchive
 from insights.parsers.dmidecode import DMIDecode
+from insights.parsers.cpuinfo import CpuInfo
 from insights.parsers.installed_rpms import InstalledRpms
 from insights.parsers.lsmod import LsMod
 from insights.parsers.meminfo import MemInfo
@@ -20,8 +21,8 @@ from insights.util.canonical_facts import get_canonical_facts, IPs
 logger = logging.getLogger('advisor-pup')
 
 
-@rule(optional=[Specs.hostname, Specs.lscpu, VirtWhat, MemInfo, IPs, DMIDecode, RedhatRelease, Uname, LsMod, InstalledRpms, UnitFiles])
-def system_profile_facts(hostname, lscpu, virt_what, meminfo, ips, dmidecode, redhat_release, uname, lsmod, installed_rpms, unit_files):
+@rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IPs, DMIDecode, RedhatRelease, Uname, LsMod, InstalledRpms, UnitFiles])
+def system_profile_facts(hostname, cpu_info, virt_what, meminfo, ips, dmidecode, redhat_release, uname, lsmod, installed_rpms, unit_files):
     """
     System Properties:
       hostnames (list of just fqdn for now)
@@ -35,6 +36,7 @@ def system_profile_facts(hostname, lscpu, virt_what, meminfo, ips, dmidecode, re
       Vendor
       Version
       Release Date
+    CPU Flags
     Operating System:
       Release (RHEL/Fedora)
       Kernel Version
@@ -61,6 +63,7 @@ def system_profile_facts(hostname, lscpu, virt_what, meminfo, ips, dmidecode, re
     metadata_args['bios.version'] = dmidecode.bios.get('version') if dmidecode else None
     # note that this is a date and not a datetime, hence no full iso8601
     metadata_args['bios.release_date'] = dmidecode.bios_date.isoformat() if dmidecode else None
+    metadata_args['cpu_flags'] = cpu_info.flags if cpu_info else None
 
     metadata_args['os.release'] = redhat_release.product if redhat_release else None
     metadata_args['os.kernel_version'] = uname.version if uname else None
