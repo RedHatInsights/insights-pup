@@ -3,6 +3,7 @@ import ipaddress
 from ipaddress import AddressValueError
 
 from insights import extract, rule, make_metadata, run
+from insights.util.subproc import CalledProcessError
 
 from insights.core.archives import InvalidArchive
 from insights.parsers.dmidecode import DMIDecode
@@ -152,7 +153,7 @@ def extract_facts(archive):
         with extract(archive) as ex:
             facts = get_canonical_facts(path=ex.tmp_dir)
             facts['system_profile'] = get_system_profile_facts(path=ex.tmp_dir)
-    except (InvalidArchive, ModuleNotFoundError, KeyError) as e:
+    except (InvalidArchive, ModuleNotFoundError, KeyError, CalledProcessError) as e:
         facts['error'] = e.args[0]
 
     return facts
