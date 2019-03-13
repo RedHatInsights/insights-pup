@@ -2,7 +2,7 @@ import requests
 import responses
 import unittest
 
-from utils.get_commit_date import get_commit_date
+from pup.utils.get_commit_date import get_commit_date
 
 
 class GetCommitDateTests(unittest.TestCase):
