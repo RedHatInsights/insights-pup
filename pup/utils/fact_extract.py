@@ -71,7 +71,7 @@ def system_profile_facts(hostname, cpu_info, virt_what, meminfo, ips, dmidecode,
     metadata_args['os.arch'] = uname.arch if uname else None
     metadata_args['os.kernel_modules'] = list(lsmod.data.keys()) if lsmod else []  # convert for json serialization
 
-    metadata_args['configuration.services'] = _create_services_fact(unit_files)
+    metadata_args['configuration.services'] = _create_services_fact(unit_files) if unit_files else None
 
     return make_metadata(**metadata_args)
 
