@@ -139,6 +139,14 @@ def _safe_parse(ds):
         return None
 
 
+def _strip_empty_facts(facts):
+    defined_facts = {}
+    for fact in facts:
+        if facts[fact]:
+            defined_facts.update({fact: facts[fact]})
+    return defined_facts
+
+
 def get_system_profile_facts(path=None):
     broker = run(system_profile_facts, root=path)
     result = broker[system_profile_facts]
@@ -156,4 +164,4 @@ def extract_facts(archive):
     except (InvalidArchive, ModuleNotFoundError, KeyError, CalledProcessError) as e:
         facts['error'] = e.args[0]
 
-    return facts
+    return _strip_empty_facts(facts)
