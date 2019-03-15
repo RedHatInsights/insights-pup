@@ -153,7 +153,7 @@ async def validate(url):
             open(temp, 'wb').write(await response.read())
 
     try:
-        return await extract_facts(temp)
+        return await loop.run_in_executor(None, extract_facts, temp)
     finally:
         os.remove(temp)
 
