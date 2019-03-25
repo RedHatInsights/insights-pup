@@ -144,6 +144,8 @@ def _strip_empty_facts(facts):
     for fact in facts:
         if facts[fact]:
             defined_facts.update({fact: facts[fact]})
+    if 'display_name' in defined_facts and len(defined_facts['display_name']) not in range(2, 200):
+        defined_facts.pop('display_name')
     return defined_facts
 
 
