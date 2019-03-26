@@ -159,7 +159,7 @@ def get_system_profile_facts(path=None):
     return result
 
 
-async def extract_facts(archive):
+def extract_facts(archive):
     logger.info("extracting facts from %s", archive)
     facts = {}
     try:
