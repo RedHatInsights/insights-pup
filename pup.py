@@ -80,7 +80,7 @@ async def handle_file(msgs):
             continue
 
         if 'error' not in result:
-            if result['insights_id'] != machine_id:
+            if result.get('insights_id') != machine_id:
                 response = await post_to_inventory(result, data)
             else:
                 response = None
