@@ -15,9 +15,15 @@ class TestFormatHelpers(unittest.TestCase):
         self.assertIn('8.8.8.8', result['ipv4_addresses'])
         self.assertIn('3ffe:1900:4545:3:200:f8ff:fe21:67cf', result['ipv6_addresses'])
 
-    def test_strip_empty_facts(self):
-        values = {"account": "12345", "metadata": {"display_name": "a", "empty_key": "", "non_empty_key": "non_empty_value"}}
-        stripped_metadata = fact_extract._strip_empty_facts(values["metadata"])
+    def test_strip_bad_display_name(self):
+        values = {"account": "12345", "metadata": {"display_name": "a", "non_empty_key": "non_empty_value"}}
+        stripped_metadata = fact_extract._remove_bad_display_name(values["metadata"])
 
+        assert stripped_metadata == {"non_empty_key": "non_empty_value"}
+
+    def test_strip_nones(self):
+        values = {"account": "12345", "metadata": {"empty_key": "", "non_empty_key": "non_empty_value"}}
+        stripped_metadata = fact_extract._remove_nones(values["metadata"])
         print(stripped_metadata)
+
         assert stripped_metadata == {"non_empty_key": "non_empty_value"}
