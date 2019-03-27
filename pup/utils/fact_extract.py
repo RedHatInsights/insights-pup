@@ -7,6 +7,8 @@ from insights.util.subproc import CalledProcessError
 
 from insights.core.archives import InvalidArchive
 from insights.parsers.dmidecode import DMIDecode
+from insights.parsers.cpuinfo import CpuInfo
+from insights.parsers.date import DateUTC
 from insights.parsers.installed_rpms import InstalledRpms
 from insights.parsers.lsmod import LsMod
 from insights.parsers.meminfo import MemInfo
@@ -14,63 +16,123 @@ from insights.parsers.redhat_release import RedhatRelease
 from insights.parsers.uname import Uname
 from insights.parsers.systemd.unitfiles import UnitFiles
 from insights.parsers.virt_what import VirtWhat
+from insights.parsers.ps import PsAuxcww
+from insights.parsers.ip import IpAddr
+from insights.parsers.uptime import Uptime
+from insights.parsers.yum_repos_d import YumReposD
 from insights.specs import Specs
-from insights.util.canonical_facts import get_canonical_facts, IPs
+from insights.util.canonical_facts import get_canonical_facts
 
 logger = logging.getLogger('advisor-pup')
 
 
-@rule(optional=[Specs.hostname, Specs.lscpu, VirtWhat, MemInfo, IPs, DMIDecode, RedhatRelease, Uname, LsMod, InstalledRpms, UnitFiles])
-def system_profile_facts(hostname, lscpu, virt_what, meminfo, ips, dmidecode, redhat_release, uname, lsmod, installed_rpms, unit_files):
+@rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IpAddr, DMIDecode,
+                RedhatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
+                DateUTC, Uptime, YumReposD])
+def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
+                   redhat_release, uname, lsmod, installed_rpms, unit_files, ps_auxcww,
+                   date_utc, uptime, yum_repos_d):
     """
-    System Properties:
-      hostnames (list of just fqdn for now)
-      mem in GB
-    Infrastructure:
-      infrastructure_type (phys or virt)
-      infrastructure vendor (hypervisor type)
-      IPv4 addresses (list)
-      IPv6 addresses (list)
-    BIOS:
-      Vendor
-      Version
-      Release Date
-    Operating System:
-      Release (RHEL/Fedora)
-      Kernel Version
-      Kernel Release
-      Arch
-      Kernel Modules (list)
-    Configuration
-      Services
+    This method applies parsers to a host and returns a system profile that can
+    be sent to inventory service.
+
+    Note that we strip all keys with the value of "None". Inventory service
+    ignores any key with None as the value.
     """
-    metadata_args = {}
+    profile = {}
+    if uname:
+        profile['arch'] = uname.arch
 
-    metadata_args['system_properties.hostnames'] = [_safe_parse(hostname)]
-    metadata_args['system_properties.memory_in_gb'] = bytes_to_gb(meminfo.total) if meminfo else None
+    if dmidecode:
+        profile['bios_release_date'] = dmidecode.get('release_date')
+        profile['bios_vendor'] = dmidecode.bios.get('vendor')
+        profile['bios_version'] = dmidecode.bios.get('version')
 
-    metadata_args['infrastructure.type'] = _get_virt_phys_fact(virt_what)
-    metadata_args['infrastructure.vendor'] = virt_what.generic if virt_what else None
+    if cpu_info:
+        profile['cpu_flags'] = cpu_info.flags
+        profile['number_of_cpus'] = cpu_info.cpu_count
+        profile['number_of_sockets'] = cpu_info.socket_count
+        if cpu_info.core_total and cpu_info.socket_count:
+            profile['cores_per_socket'] = cpu_info.core_total // cpu_info.socket_count
 
-    if ips:
-        ip_addresses = ipv4_ipv6_addresses(ips.data)
-        metadata_args['infrastructure.ipv4_addresses'] = ip_addresses.get('ipv4')
-        metadata_args['infrastructure.ipv4_addresses'] = ip_addresses.get('ipv6')
+    if unit_files:
+        profile['enabled_services'] = _enabled_services(unit_files)
+        profile['installed_services'] = _installed_services(unit_files)
 
-    metadata_args['bios.vendor'] = dmidecode.bios_vendor if dmidecode else None
-    metadata_args['bios.version'] = dmidecode.bios.get('version') if dmidecode else None
-    # note that this is a date and not a datetime, hence no full iso8601
-    metadata_args['bios.release_date'] = dmidecode.bios_date.isoformat() if dmidecode else None
+    if virt_what:
+        profile['infrastructure_type'] = _get_virt_phys_fact(virt_what)
+        profile['infrastructure_vendor'] = virt_what.generic
 
-    metadata_args['os.release'] = redhat_release.product if redhat_release else None
-    metadata_args['os.kernel_version'] = uname.version if uname else None
-    metadata_args['os.kernel_release'] = uname.release if uname else None
-    metadata_args['os.arch'] = uname.arch if uname else None
-    metadata_args['os.kernel_modules'] = list(lsmod.data.keys()) if lsmod else []  # convert for json serialization
+    if installed_rpms:
+        profile['installed_packages'] = sorted([str(p[0]) for p in installed_rpms.packages.values()])
 
-    metadata_args['configuration.services'] = _create_services_fact(unit_files) if unit_files else None
+    if lsmod:
+        profile['kernel_modules'] = list(lsmod.data.keys())
 
-    return make_metadata(**metadata_args)
+    if uptime and date_utc:
+        boot_time = date_utc.datetime - uptime.uptime
+        profile['last_boot_time'] = boot_time.isoformat()
+
+    if ip_addr:
+        network_interfaces = []
+        for iface in ip_addr:
+            # iface is not a dict and does not support 'get()'. Fetch values
+            # and then remove Nones.
+            interface = {'ipv4_addresses': iface.addrs(version=4),
+                         'ipv6_addresses': iface.addrs(version=6),
+                         'mac_address': iface['mac'],
+                         'mtu': iface['mtu'],
+                         'name': iface['name'],
+                         'state': iface['state'],
+                         'type': iface['type']}
+            network_interfaces.append(_remove_nones(interface))
+
+        profile['network_interfaces'] = network_interfaces
+
+    if uname:
+        profile['os_kernel_version'] = uname.version
+        profile['os_kernel_release'] = uname.release
+
+    if ps_auxcww:
+        profile['running_processes'] = list(ps_auxcww.running)
+
+    if meminfo:
+        profile['system_memory_bytes'] = meminfo.total
+
+    if yum_repos_d:
+        repos = []
+        for yum_repo_file in yum_repos_d:
+            for yum_repo_definition in yum_repo_file:
+                baseurl = yum_repo_file[yum_repo_definition].get('baseurl', [])
+
+                repo = {'name': yum_repo_file[yum_repo_definition].get('name'),
+                        'base_url': baseurl[0] if baseurl else None,
+                        'enabled': _to_bool(yum_repo_file[yum_repo_definition].get('enabled')),
+                        'gpgcheck': _to_bool(yum_repo_file[yum_repo_definition].get('gpgcheck'))}
+                repos.append(repo)
+        profile['yum_repos'] = repos
+
+    profile_sans_none = _remove_nones(profile)
+    return make_metadata(**profile_sans_none)
+
+
+def _to_bool(value):
+    """
+    small helper method to convert "0/1" and "enabled/disabled" to booleans
+    """
+    if value in ['0', 'disabled']:
+        return False
+    if value in ['1', 'enabled']:
+        return True
+    else:
+        return None
+
+
+def _remove_nones(d):
+    """
+    small helper method to remove keys with value of None or ''
+    """
+    return {x: d[x] for x in d if d[x] not in [None, '']}
 
 
 def _get_virt_phys_fact(virt_what):
@@ -82,17 +144,18 @@ def _get_virt_phys_fact(virt_what):
         return None
 
 
-def _create_services_fact(unit_files):
+def _enabled_services(unit_files):
     """
-    create a json serializable dict of services. The key is the service name,
-    and the value is if it's enabled or not.
+    This method finds enabled services and strips the '.service' suffix
     """
-    services = {}
-    for service in unit_files.services:
-        if service.endswith('.service'):
-            services.update({service: unit_files.services[service]})
+    return [service[:-8] for service in unit_files.services if unit_files.services[service] and '.service' in service]
 
-    return services
+
+def _installed_services(unit_files):
+    """
+    This method finds installed services and strips the '.service' suffix
+    """
+    return [service[:-8] for service in unit_files.services if '.service' in service]
 
 
 def test_ipv4_addr(address):
@@ -139,31 +202,31 @@ def _safe_parse(ds):
         return None
 
 
-def _strip_empty_facts(facts):
-    defined_facts = {}
-    for fact in facts:
-        if facts[fact]:
-            defined_facts.update({fact: facts[fact]})
+def _remove_bad_display_name(facts):
+    defined_facts = facts
     if 'display_name' in defined_facts and len(defined_facts['display_name']) not in range(2, 200):
         defined_facts.pop('display_name')
     return defined_facts
 
 
-def get_system_profile_facts(path=None):
-    broker = run(system_profile_facts, root=path)
-    result = broker[system_profile_facts]
+def get_system_profile(path=None):
+    broker = run(system_profile, root=path)
+    result = broker[system_profile]
     del result["type"]  # drop metadata key
     return result
 
 
 def extract_facts(archive):
+    # TODO: facts, system_profiles, and errors are all passed through via the
+    # 'facts' hash. These should likely be split out.
     logger.info("extracting facts from %s", archive)
     facts = {}
     try:
         with extract(archive) as ex:
             facts = get_canonical_facts(path=ex.tmp_dir)
-            facts['system_profile'] = get_system_profile_facts(path=ex.tmp_dir)
+            facts['system_profile'] = get_system_profile(path=ex.tmp_dir)
     except (InvalidArchive, ModuleNotFoundError, KeyError, CalledProcessError) as e:
         facts['error'] = e.args[0]
 
-    return _strip_empty_facts(facts)
+    groomed_facts = _remove_nones(_remove_bad_display_name(facts))
+    return groomed_facts
