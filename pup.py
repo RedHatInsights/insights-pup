@@ -162,16 +162,12 @@ async def validate(url):
 @time(mnm.inventory_post_time)
 async def post_to_inventory(facts, msg):
 
-    system_profile = facts.pop('system_profile')
     post = {**facts, **msg}
     post['account'] = post.pop('rh_account')
     post['facts'] = []
     if post.get('metadata'):
         post['facts'].append({'facts': post.pop('metadata'),
                               'namespace': 'insights-client'})
-
-    post['facts'].append({'facts': system_profile,
-                          'namespace': 'system_profile'})
 
     headers = {'x-rh-identity': post['b64_identity'],
                'Content-Type': 'application/json'}
