@@ -85,7 +85,7 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                          'name': iface['name'],
                          'state': iface['state'],
                          'type': iface['type']}
-            network_interfaces.append(_remove_nones(interface))
+            network_interfaces.append(_remove_empties(interface))
 
         profile['network_interfaces'] = network_interfaces
 
@@ -112,7 +112,7 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                 repos.append(repo)
         profile['yum_repos'] = repos
 
-    profile_sans_none = _remove_nones(profile)
+    profile_sans_none = _remove_empties(profile)
     return make_metadata(**profile_sans_none)
 
 
@@ -128,11 +128,12 @@ def _to_bool(value):
         return None
 
 
-def _remove_nones(d):
+def _remove_empties(d):
     """
-    small helper method to remove keys with value of None or ''
+    small helper method to remove keys with value of None, [] or ''. These are
+    not accepted by inventory service.
     """
-    return {x: d[x] for x in d if d[x] not in [None, '']}
+    return {x: d[x] for x in d if d[x] not in [None, '', []]}
 
 
 def _get_virt_phys_fact(virt_what):
@@ -229,5 +230,5 @@ def extract_facts(archive):
         logger.info(e)
         facts['error'] = e.args[0]
 
-    groomed_facts = _remove_nones(_remove_bad_display_name(facts))
+    groomed_facts = _remove_empties(_remove_bad_display_name(facts))
     return groomed_facts

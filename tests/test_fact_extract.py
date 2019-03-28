@@ -21,9 +21,9 @@ class TestFormatHelpers(unittest.TestCase):
 
         assert stripped_metadata == {"non_empty_key": "non_empty_value"}
 
-    def test_strip_nones(self):
-        values = {"account": "12345", "metadata": {"empty_key": "", "non_empty_key": "non_empty_value"}}
-        stripped_metadata = fact_extract._remove_nones(values["metadata"])
+    def test_strip_empties(self):
+        values = {"account": "12345", "metadata": {"empty_key": "", "another_empty": [], "non_empty_key": "non_empty_value"}}
+        stripped_metadata = fact_extract._remove_empties(values["metadata"])
         print(stripped_metadata)
 
         assert stripped_metadata == {"non_empty_key": "non_empty_value"}
