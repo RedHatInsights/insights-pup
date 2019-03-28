@@ -78,3 +78,5 @@ xmltodict==0.11.0
 yarl==1.3.0
 prometheus_async
 nose
+pandas
+ansible
