@@ -61,8 +61,38 @@ async def consume(client):
     await asyncio.sleep(0.1)
 
 
-async def handle_file(msgs):
+def fail_upload(data, result):
+    mnm.invalid.inc()
+    logger.info("payload_id [%s] validation failed with error: %s", data['payload_id'], result['error'])
+    data_to_produce = {
+        'topic': 'platform.upload.validation',
+        'msg': {
+            'payload_id': data['payload_id'],
+            'validation': 'failure'
+        }
+    }
+    return data_to_produce
 
+
+def succeed_upload(data, result):
+    mnm.valid.inc()
+    logger.info("payload_id [%s] validation successful", data['payload_id'])
+    data_to_produce = {
+        'topic': 'platform.upload.validation',
+        'msg': {
+            'id': result.get('id') if result else None,
+            'service': data['service'],
+            'payload_id': data['payload_id'],
+            'account': data['account'],
+            'principal': data['principal'],
+            'b64_identity': data.get('b64_identity'),
+            'validation': 'success'
+        }
+    }
+    return data_to_produce
+
+
+async def handle_file(msgs):
     for msg in msgs:
         try:
             data = json.loads(msg.value)
@@ -83,32 +113,15 @@ async def handle_file(msgs):
             if result.get('insights_id') != machine_id:
                 response = await post_to_inventory(result, data)
             else:
-                response = None
+                response = {"id": result.get('insights_id')}
 
-            mnm.valid.inc()
-            logger.info("payload_id [%s] validation successful", data['payload_id'])
-            data_to_produce = {
-                'topic': 'platform.upload.validation',
-                'msg': {
-                    'id': response.get('id') if response else None,
-                    'service': data['service'],
-                    'payload_id': data['payload_id'],
-                    'account': data['account'],
-                    'principal': data['principal'],
-                    'b64_identity': data.get('b64_identity'),
-                    'validation': 'success'
-                }
-            }
+            if response.get('error'):
+                data_to_produce = fail_upload(data, response)
+            else:
+                data_to_produce = succeed_upload(data, response)
+
         else:
-            mnm.invalid.inc()
-            logger.info("payload_id [%s] validation failed with error: %s", data['payload_id'], result['error'])
-            data_to_produce = {
-                'topic': 'platform.upload.validation',
-                'msg': {
-                    'payload_id': data['payload_id'],
-                    'validation': 'failure'
-                }
-            }
+            data_to_produce = fail_upload(data, result)
 
         produce_queue.append(data_to_produce)
         logger.info(
@@ -180,6 +193,7 @@ async def post_to_inventory(facts, msg):
                 if response.status != 207:
                     error = response_json.get('detail')
                     logger.error('Failed to post to inventory: %s', error)
+                    return {"error": "Failed to post to inventory."}
                 elif response_json['data'][0]['status'] != 200 and response_json['data'][0]['status'] != 201:
                     mnm.inventory_post_failure.inc()
                     logger.error(
@@ -188,6 +202,7 @@ async def post_to_inventory(facts, msg):
                     logger.debug(
                         'inventory error response: %s', await response.text()
                     )
+                    return {"error": "Failed to post to inventory."}
                 else:
                     mnm.inventory_post_success.inc()
                     logger.info("payload_id [%s] posted to inventory: ID [%s]",
