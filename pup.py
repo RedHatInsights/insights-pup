@@ -57,7 +57,7 @@ async def consume(client):
     for tp, msgs in data.items():
         if tp.topic == configuration.PUP_QUEUE:
             logger.info("received messages: %s", msgs)
-            await handle_file(msgs)
+            loop.create_task(handle_file(msgs))
     await asyncio.sleep(0.1)
 
 
