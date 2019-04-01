@@ -62,9 +62,9 @@ async def consume(client):
     await asyncio.sleep(0.1)
 
 
-def fail_upload(data, result):
+def fail_upload(data, response):
     mnm.invalid.inc()
-    logger.info("payload_id [%s] validation failed with error: %s", data['payload_id'], result['error'])
+    logger.info("payload_id [%s] validation failed with error: %s", data['payload_id'], response['error'])
     data_to_produce = {
         'topic': 'platform.upload.validation',
         'msg': {
@@ -75,13 +75,13 @@ def fail_upload(data, result):
     return data_to_produce
 
 
-def succeed_upload(data, result):
+def succeed_upload(data, response):
     mnm.valid.inc()
     logger.info("payload_id [%s] validation successful", data['payload_id'])
     data_to_produce = {
         'topic': 'platform.upload.validation',
         'msg': {
-            'id': result.get('id') if result else None,
+            'id': response.get('id') if response else None,
             'service': data['service'],
             'payload_id': data['payload_id'],
             'account': data['account'],
