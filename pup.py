@@ -109,7 +109,7 @@ async def handle_file(msgs):
             logger.error('Connection to S3 Failed')
             continue
 
-        if 'error' not in result:
+        if len(result) > 0 and 'error' not in result:
             if result.get('insights_id') != machine_id:
                 response = await post_to_inventory(result, data)
             else:
