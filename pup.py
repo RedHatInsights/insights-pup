@@ -151,6 +151,7 @@ async def validate(url):
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             open(temp, 'wb').write(await response.read())
+        await session.close()
 
     try:
         return await loop.run_in_executor(None, extract_facts, temp)
@@ -194,6 +195,8 @@ async def post_to_inventory(facts, msg):
                                 msg['payload_id'],
                                 response_json['data'][0]['host']['id'])
                     return response_json['data'][0]['host']
+            await session.close()
+
     except ClientConnectionError as e:
         logger.error("payload_id [%s] failed to post to inventory, unable to connect: %s", msg['payload_id'], e)
         return {"error": "Unable to update inventory. Service unavailable"}
