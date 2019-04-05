@@ -43,8 +43,9 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
 
     if dmidecode:
         profile['bios_release_date'] = dmidecode.get('release_date')
-        profile['bios_vendor'] = dmidecode.bios.get('vendor')
-        profile['bios_version'] = dmidecode.bios.get('version')
+        if dmidecode.get('bios'):
+            profile['bios_vendor'] = dmidecode.bios.get('vendor')
+            profile['bios_version'] = dmidecode.bios.get('version')
 
     if cpu_info:
         profile['cpu_flags'] = cpu_info.flags
