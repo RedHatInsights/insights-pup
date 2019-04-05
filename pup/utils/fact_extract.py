@@ -158,41 +158,6 @@ def _installed_services(unit_files):
     return [service[:-8] for service in unit_files.services if '.service' in service]
 
 
-def test_ipv4_addr(address):
-    """
-    return true if address is ipv4, false otherwise
-    """
-    try:
-        ipaddress.IPv4Address(address)
-        return True
-    except AddressValueError:
-        return False
-
-
-def test_ipv6_addr(address):
-    """
-    return true if address is ipv6, false otherwise
-    """
-    try:
-        ipaddress.IPv6Address(address)
-        return True
-    except AddressValueError:
-        return False
-
-
-def ipv4_ipv6_addresses(addresses):
-    """
-    return a dict with IPv4 and IPv6 addresses
-    """
-    result = {'ipv4_addresses': [a for a in addresses if test_ipv4_addr(a)],
-              'ipv6_addresses': [a for a in addresses if test_ipv6_addr(a)]}
-    return result
-
-
-def bytes_to_gb(num_bytes):
-    return '%.1f' % float(num_bytes / 1_000_000_000) + " GB"
-
-
 # from insights-core get_canonical_facts util
 def _safe_parse(ds):
     try:
