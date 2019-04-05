@@ -197,7 +197,10 @@ async def post_to_inventory(facts, msg):
                 elif response_json['data'][0]['status'] != 200 and response_json['data'][0]['status'] != 201:
                     mnm.inventory_post_failure.inc()
                     logger.error(
-                        'payload_id [%s] failed to post to inventory: %s', msg['payload_id'], await response.text()
+                        'payload_id [%s] failed to post to inventory.', msg['payload_id']
+                    )
+                    logger.debug(
+                        'inventory error response: %s', await response.text()
                     )
                     return {"error": "Failed to post to inventory."}
                 else:
