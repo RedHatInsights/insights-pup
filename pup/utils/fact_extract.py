@@ -76,15 +76,13 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
     if ip_addr:
         network_interfaces = []
         for iface in ip_addr:
-            # iface is not a dict and does not support 'get()'. Fetch values
-            # and then remove Nones.
             interface = {'ipv4_addresses': iface.addrs(version=4),
                          'ipv6_addresses': iface.addrs(version=6),
-                         'mac_address': iface['mac'],
-                         'mtu': iface['mtu'],
-                         'name': iface['name'],
-                         'state': iface['state'],
-                         'type': iface['type']}
+                         'mac_address': _safe_fetch_interface_field(iface, 'mac'),
+                         'mtu': _safe_fetch_interface_field(iface, 'mtu'),
+                         'name': _safe_fetch_interface_field(iface, 'name'),
+                         'state': _safe_fetch_interface_field(iface, 'state'),
+                         'type': _safe_fetch_interface_field(iface, 'type')}
             network_interfaces.append(_remove_empties(interface))
 
         profile['network_interfaces'] = network_interfaces
@@ -104,16 +102,17 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
         for yum_repo_file in yum_repos_d:
             for yum_repo_definition in yum_repo_file:
                 baseurl = yum_repo_file[yum_repo_definition].get('baseurl', [])
-
                 repo = {'name': yum_repo_file[yum_repo_definition].get('name'),
-                        'base_url': baseurl[0] if baseurl else None,
+                        'base_url': baseurl[0] if len(baseurl) > 0 else None,
                         'enabled': _to_bool(yum_repo_file[yum_repo_definition].get('enabled')),
                         'gpgcheck': _to_bool(yum_repo_file[yum_repo_definition].get('gpgcheck'))}
-                repos.append(repo)
+                repos.append(_remove_empties(repo))
         profile['yum_repos'] = repos
 
+    metadata_response = make_metadata()
     profile_sans_none = _remove_empties(profile)
-    return make_metadata(**profile_sans_none)
+    metadata_response.update(profile_sans_none)
+    return metadata_response
 
 
 def _to_bool(value):
@@ -200,6 +199,13 @@ def _safe_parse(ds):
         return ds.content[0]
 
     except Exception:
+        return None
+
+
+def _safe_fetch_interface_field(interface, field_name):
+    try:
+        return interface[field_name]
+    except KeyError:
         return None
 
 
