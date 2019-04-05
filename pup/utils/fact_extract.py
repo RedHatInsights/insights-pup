@@ -1,6 +1,4 @@
 import logging
-import ipaddress
-from ipaddress import AddressValueError
 
 from insights import extract, rule, make_metadata, run
 from insights.util.subproc import CalledProcessError
