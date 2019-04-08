@@ -1,9 +1,7 @@
 import logging
 
 from insights import extract, rule, make_metadata, run
-from insights.util.subproc import CalledProcessError
 
-from insights.core.archives import InvalidArchive
 from insights.parsers.dmidecode import DMIDecode
 from insights.parsers.cpuinfo import CpuInfo
 from insights.parsers.date import DateUTC
@@ -196,8 +194,8 @@ def extract_facts(archive):
         with extract(archive) as ex:
             facts = get_canonical_facts(path=ex.tmp_dir)
             facts['system_profile'] = get_system_profile(path=ex.tmp_dir)
-    except (InvalidArchive, ModuleNotFoundError, KeyError, CalledProcessError) as e:
-        logger.info(e)
+    except Exception as e:
+        logger.exception("Failed to extract facts")
         facts['error'] = e.args[0]
 
     groomed_facts = _remove_empties(_remove_bad_display_name(facts))
