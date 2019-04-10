@@ -87,6 +87,7 @@ def succeed_upload(data, response):
             'account': data['account'],
             'principal': data['principal'],
             'b64_identity': data.get('b64_identity'),
+            'satellite_managed': data.get('satellite_managed'),
             'validation': 'success'
         }
     }
@@ -109,6 +110,8 @@ async def handle_file(msgs):
         except (ServerDisconnectedError, ClientConnectionError):
             logger.error('Connection to S3 Failed')
             continue
+
+        data["satellite_managed"] = result.get("system_profile").get("satellite_managed")
 
         if len(result) > 0 and 'error' not in result:
             if result.get('insights_id') != machine_id:
