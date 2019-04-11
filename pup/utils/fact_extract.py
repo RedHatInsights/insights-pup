@@ -1,9 +1,7 @@
 import logging
 
 from insights import extract, rule, make_metadata, run
-from insights.util.subproc import CalledProcessError
 
-from insights.core.archives import InvalidArchive
 from insights.parsers.dmidecode import DMIDecode
 from insights.parsers.cpuinfo import CpuInfo
 from insights.parsers.date import DateUTC
@@ -18,18 +16,23 @@ from insights.parsers.ps import PsAuxcww
 from insights.parsers.ip import IpAddr
 from insights.parsers.uptime import Uptime
 from insights.parsers.yum_repos_d import YumReposD
+from insights.parsers.ls_etc import LsEtc
 from insights.specs import Specs
 from insights.util.canonical_facts import get_canonical_facts
 
 logger = logging.getLogger('advisor-pup')
 
+SATELLITE_MANAGED_FILES = {
+    "sat5": ["/etc/sysconfig/rhn", "systemid"],
+    "sat6": ["/etc/rhsm/ca", "katello-server-ca.pem"],
+}
 
 @rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IpAddr, DMIDecode,
                 RedhatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
-                DateUTC, Uptime, YumReposD])
+                DateUTC, Uptime, YumReposD, LsEtc])
 def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                    redhat_release, uname, lsmod, installed_rpms, unit_files, ps_auxcww,
-                   date_utc, uptime, yum_repos_d):
+                   date_utc, uptime, yum_repos_d, ls_etc):
     """
     This method applies parsers to a host and returns a system profile that can
     be sent to inventory service.
@@ -107,6 +110,11 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                         'gpgcheck': _to_bool(yum_repo_file[yum_repo_definition].get('gpgcheck'))}
                 repos.append(_remove_empties(repo))
         profile['yum_repos'] = repos
+
+    if ls_etc:
+        profile['satellite_managed'] = any(ls_etc.dir_contains(*satellite_file)
+                                           for satellite_file in SATELLITE_MANAGED_FILES.values()
+                                           if satellite_file[0] in ls_etc)
 
     metadata_response = make_metadata()
     profile_sans_none = _remove_empties(profile)
@@ -196,8 +204,8 @@ def extract_facts(archive):
         with extract(archive) as ex:
             facts = get_canonical_facts(path=ex.tmp_dir)
             facts['system_profile'] = get_system_profile(path=ex.tmp_dir)
-    except (InvalidArchive, ModuleNotFoundError, KeyError, CalledProcessError) as e:
-        logger.info(e)
+    except Exception as e:
+        logger.exception("Failed to extract facts")
         facts['error'] = e.args[0]
 
     groomed_facts = _remove_empties(_remove_bad_display_name(facts))
