@@ -27,6 +27,7 @@ else:
 
 logger = logging.getLogger('advisor-pup')
 
+
 def main():
     produce_queue = collections.deque([], 999)
     thread_pool_executor = ThreadPoolExecutor(max_workers=configuration.MAX_WORKERS)
