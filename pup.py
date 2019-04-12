@@ -163,14 +163,19 @@ def make_producer(queue=None):
 @time(mnm.validation_time)
 async def validate(url):
 
-    temp = NamedTemporaryFile(delete=False).name
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            open(temp, 'wb').write(await response.read())
-        await session.close()
+    def _write(filename, data):
+        with open(filename, "wb") as f:
+            f.write(data)
 
     try:
+        temp = NamedTemporaryFile(delete=False).name
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                data = await response.read()
+                await loop.run_in_executor(None, _write, temp, data)
+            await session.close()
+
         return await loop.run_in_executor(None, extract_facts, temp)
     finally:
         os.remove(temp)
