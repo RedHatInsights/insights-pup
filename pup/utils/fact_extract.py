@@ -27,6 +27,7 @@ SATELLITE_MANAGED_FILES = {
     "sat6": ["/etc/rhsm/ca", "katello-server-ca.pem"],
 }
 
+
 @rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IpAddr, DMIDecode,
                 RedhatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
                 DateUTC, Uptime, YumReposD, LsEtc])
