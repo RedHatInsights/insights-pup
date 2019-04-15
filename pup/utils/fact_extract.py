@@ -207,7 +207,7 @@ def extract_facts(archive):
             facts['system_profile'] = get_system_profile(path=ex.tmp_dir)
     except Exception as e:
         logger.exception("Failed to extract facts")
-        facts['error'] = e.args[0]
+        facts['error'] = e
 
     groomed_facts = _remove_empties(_remove_bad_display_name(facts))
     return groomed_facts
