@@ -3,6 +3,7 @@ import os
 
 from insights import extract, rule, make_metadata, run
 
+from insights.combiners.cloud_provider import CloudProvider
 from insights.parsers.dmidecode import DMIDecode
 from insights.parsers.cpuinfo import CpuInfo
 from insights.parsers.date import DateUTC
@@ -31,10 +32,10 @@ SATELLITE_MANAGED_FILES = {
 
 @rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IpAddr, DMIDecode,
                 RedhatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
-                DateUTC, Uptime, YumReposD, LsEtc])
+                DateUTC, Uptime, YumReposD, LsEtc, CloudProvider])
 def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                    redhat_release, uname, lsmod, installed_rpms, unit_files, ps_auxcww,
-                   date_utc, uptime, yum_repos_d, ls_etc):
+                   date_utc, uptime, yum_repos_d, ls_etc, cloud_provider):
     """
     This method applies parsers to a host and returns a system profile that can
     be sent to inventory service.
@@ -117,6 +118,8 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
         profile['satellite_managed'] = any(ls_etc.dir_contains(*satellite_file)
                                            for satellite_file in SATELLITE_MANAGED_FILES.values()
                                            if satellite_file[0] in ls_etc)
+    if cloud_provider:
+        profile['cloud_provider'] = cloud_provider.cloud_provider
 
     metadata_response = make_metadata()
     profile_sans_none = _remove_empties(profile)
