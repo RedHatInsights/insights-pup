@@ -5,6 +5,7 @@ import asyncio
 import collections
 import json
 import aiohttp
+import watchtower
 
 from tempfile import NamedTemporaryFile
 from aiohttp.client_exceptions import ClientConnectionError, ServerDisconnectedError
@@ -32,6 +33,8 @@ else:
     )
 
 logger = logging.getLogger('advisor-pup')
+if (configuration.AWS_ACCESS_KEY_ID and configuration.AWS_SECRET_ACCESS_KEY):
+    logger.addHandler(watchtower.CloudWatchLogHandler())
 
 
 thread_pool_executor = ThreadPoolExecutor(max_workers=configuration.MAX_WORKERS)

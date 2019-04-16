@@ -8,6 +8,7 @@ atomicwrites==1.2.1
 attr==0.3.1
 attrs==18.2.0
 aws-xray-sdk==0.95
+awscli
 boto==2.49.0
 boto3==1.9.41
 botocore==1.12.41
@@ -71,6 +72,7 @@ tornado==5.1.1
 typed-ast==1.1.0
 typing-extensions==3.7.2
 urllib3==1.24.1
+watchtower
 websocket-client==0.54.0
 Werkzeug==0.14.1
 wrapt==1.10.11
