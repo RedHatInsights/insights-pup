@@ -208,7 +208,7 @@ async def post_to_inventory(facts, msg):
                     logger.error(
                         'payload_id [%s] failed to post to inventory.', msg['payload_id']
                     )
-                    logger.debug(
+                    logger.error(
                         'inventory error response: %s', await response.text()
                     )
                     return {"error": "Failed to post to inventory."}
