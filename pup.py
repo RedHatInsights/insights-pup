@@ -37,7 +37,7 @@ logger = logging.getLogger('advisor-pup')
 if (configuration.AWS_ACCESS_KEY_ID and configuration.AWS_SECRET_ACCESS_KEY):
     CW_SESSION = Session(aws_access_key_id=configuration.AWS_ACCESS_KEY_ID,
                          aws_secret_access_key=configuration.AWS_SECRET_ACCESS_KEY,
-                         aws_region_name=configuration.AWS_REGION_NAME)
+                         region_name=configuration.AWS_REGION_NAME)
     logger.addHandler(watchtower.CloudWatchLogHandler(boto3_session=CW_SESSION))
 
 
