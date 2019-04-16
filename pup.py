@@ -48,7 +48,6 @@ if (configuration.AWS_ACCESS_KEY_ID and configuration.AWS_SECRET_ACCESS_KEY):
                                                       log_group='insights-pup',
                                                       stream_name=NAMESPACE))
 
-
 thread_pool_executor = ThreadPoolExecutor(max_workers=configuration.MAX_WORKERS)
 loop = asyncio.get_event_loop()
 
