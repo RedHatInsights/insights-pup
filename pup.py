@@ -44,9 +44,11 @@ if (configuration.AWS_ACCESS_KEY_ID and configuration.AWS_SECRET_ACCESS_KEY):
     CW_SESSION = Session(aws_access_key_id=configuration.AWS_ACCESS_KEY_ID,
                          aws_secret_access_key=configuration.AWS_SECRET_ACCESS_KEY,
                          region_name=configuration.AWS_REGION_NAME)
-    logger.addHandler(watchtower.CloudWatchLogHandler(boto3_session=CW_SESSION,
-                                                      log_group='insights-pup',
-                                                      stream_name=NAMESPACE))
+    cw_handler = watchtower.CloudWatchLogHandler(boto3_session=CW_SESSION,
+                                                 log_group='platform',
+                                                 stream_name=NAMESPACE)
+    cw_handler.setFormatter(LogstashFormatterV1())
+    logger.addHandler(cw_handler)
 
 thread_pool_executor = ThreadPoolExecutor(max_workers=configuration.MAX_WORKERS)
 loop = asyncio.get_event_loop()
