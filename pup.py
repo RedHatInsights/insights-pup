@@ -5,6 +5,7 @@ import asyncio
 import collections
 import json
 import aiohttp
+import watchtower
 
 from tempfile import NamedTemporaryFile
 from aiohttp.client_exceptions import ClientConnectionError, ServerDisconnectedError
@@ -14,6 +15,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.errors import KafkaError
 from kafkahelpers import ReconnectingClient
 from prometheus_async.aio import time
+from boto3.session import Session
 
 from pup.utils import mnm, configuration
 from pup.utils.fact_extract import extract_facts
@@ -32,6 +34,19 @@ else:
     )
 
 logger = logging.getLogger('advisor-pup')
+try:
+    with open('/var/run/secrets/kubernetes.io/serviceaccount/namespace', 'r') as f:
+        NAMESPACE = f.read()
+except EnvironmentError:
+    logger.info('Not Running on Openshift')
+
+if (configuration.AWS_ACCESS_KEY_ID and configuration.AWS_SECRET_ACCESS_KEY):
+    CW_SESSION = Session(aws_access_key_id=configuration.AWS_ACCESS_KEY_ID,
+                         aws_secret_access_key=configuration.AWS_SECRET_ACCESS_KEY,
+                         region_name=configuration.AWS_REGION_NAME)
+    logger.addHandler(watchtower.CloudWatchLogHandler(boto3_session=CW_SESSION,
+                                                      log_group='insights-pup',
+                                                      stream_name=NAMESPACE))
 
 thread_pool_executor = ThreadPoolExecutor(max_workers=configuration.MAX_WORKERS)
 loop = asyncio.get_event_loop()
