@@ -215,5 +215,5 @@ def extract_facts(archive, request_id):
 
     groomed_facts = _remove_empties(_remove_bad_display_name(facts))
     os.remove(archive)
-    logger.info("Successfully extracted canonical facts: %s", groomed_facts, extra={"request_id": request_id})
+    logger.info("Successfully extracted canonical facts", extra={"request_id": request_id})
     return groomed_facts
