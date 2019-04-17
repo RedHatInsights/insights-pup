@@ -123,8 +123,8 @@ async def handle_file(msgs):
         mnm.total.inc()
         try:
             result = await validate(data['url'])
-        except (ServerDisconnectedError, ClientConnectionError):
-            logger.error('Connection to S3 Failed')
+        except Exception as e:
+            logger.error('Validation encountered error: %s', e)
             continue
 
         data["satellite_managed"] = result.get("system_profile").get("satellite_managed")
@@ -193,9 +193,8 @@ async def validate(url):
             await session.close()
 
         return await loop.run_in_executor(None, extract_facts, temp)
-    finally:
+    except Exception as e:
         os.remove(temp)
-
 
 @time(mnm.inventory_post_time)
 async def post_to_inventory(facts, msg):
