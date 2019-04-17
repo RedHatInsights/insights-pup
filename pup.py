@@ -194,7 +194,7 @@ async def validate(url):
 
         return await loop.run_in_executor(None, extract_facts, temp)
     except Exception as e:
-        logger.exception("Valdation failure: %s", e)
+        logger.exception("Validation failure: %s", e)
         os.remove(temp)
 
 @time(mnm.inventory_post_time)
