@@ -208,7 +208,8 @@ async def post_to_inventory(facts, msg):
                               'namespace': 'insights-client'})
 
     headers = {'x-rh-identity': post['b64_identity'],
-               'Content-Type': 'application/json'}
+               'Content-Type': 'application/json',
+               'x-rh-insights-request-id': post['payload_id']}
 
     try:
         timeout = aiohttp.ClientTimeout(total=60)
