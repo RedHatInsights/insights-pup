@@ -1,4 +1,5 @@
 import logging
+import os
 
 from insights import extract, rule, make_metadata, run
 
@@ -210,4 +211,5 @@ def extract_facts(archive):
         facts['error'] = e
 
     groomed_facts = _remove_empties(_remove_bad_display_name(facts))
+    os.remove(archive)
     return groomed_facts
