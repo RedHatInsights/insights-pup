@@ -124,7 +124,7 @@ async def handle_file(msgs):
         try:
             result = await validate(data['url'])
         except Exception as e:
-            logger.exception('Validation encountered error: %s', e)
+            logger.exception("Validation encountered error: %s", e)
             continue
 
         data["satellite_managed"] = result.get("system_profile").get("satellite_managed")
@@ -194,6 +194,7 @@ async def validate(url):
 
         return await loop.run_in_executor(None, extract_facts, temp)
     except Exception as e:
+        logger.exception("Valdation failure: %s", e)
         os.remove(temp)
 
 @time(mnm.inventory_post_time)
