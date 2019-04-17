@@ -8,7 +8,7 @@ import aiohttp
 import watchtower
 
 from tempfile import NamedTemporaryFile
-from aiohttp.client_exceptions import ClientConnectionError, ServerDisconnectedError
+from aiohttp.client_exceptions import ClientConnectionError
 from logstash_formatter import LogstashFormatterV1
 from concurrent.futures import ThreadPoolExecutor
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
@@ -196,6 +196,7 @@ async def validate(url):
     except Exception as e:
         logger.exception("Validation failure: %s", e)
         os.remove(temp)
+
 
 @time(mnm.inventory_post_time)
 async def post_to_inventory(facts, msg):
