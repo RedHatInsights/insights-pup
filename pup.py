@@ -80,7 +80,7 @@ async def consume(client):
 
 def fail_upload(data, response):
     mnm.invalid.inc()
-    logger.info("payload_id [%s] validation failed with error: %s", data['payload_id'], response['error'])
+    logger.info("payload_id [%s] validation failed with error: %s", data['payload_id'], response['error'], extra={"request_id": data['payload_id']})
     data_to_produce = {
         'topic': 'platform.upload.validation',
         'msg': {
@@ -93,7 +93,7 @@ def fail_upload(data, response):
 
 def succeed_upload(data, response):
     mnm.valid.inc()
-    logger.info("payload_id [%s] validation successful", data['payload_id'])
+    logger.info("payload_id [%s] validation successful", data['payload_id'], extra={"request_id": data['payload_id']})
     data_to_produce = {
         'topic': 'platform.upload.validation',
         'msg': {
@@ -115,16 +115,15 @@ async def handle_file(msgs):
         try:
             data = json.loads(msg.value)
         except ValueError:
-            logger.error("handle_file(): unable to decode msg as json: {}".format(msg.value))
+            logger.error("handle_file(): unable to decode msg as json: %s", msg.value, extra={"request_id": data['payload_id']})
             continue
 
-        logger.info(data)
         machine_id = data['metadata'].get('machine_id') if data.get('metadata') else None
         mnm.total.inc()
         try:
-            result = await validate(data['url'])
+            result = await validate(data['url'], data["payload_id"])
         except Exception as e:
-            logger.exception("Validation encountered error: %s", e)
+            logger.exception("Validation encountered error: %s", e, extra={"request_id": data['payload_id']})
             continue
 
         data["satellite_managed"] = result.get("system_profile").get("satellite_managed")
@@ -146,7 +145,8 @@ async def handle_file(msgs):
         produce_queue.append(data_to_produce)
         logger.info(
             "data for topic [%s], payload_id [%s] put on produce queue (qsize now: %d): %s",
-            data_to_produce['topic'], data_to_produce['msg']['payload_id'], len(produce_queue), data_to_produce
+            data_to_produce['topic'], data_to_produce['msg']['payload_id'], len(produce_queue), data_to_produce,
+            extra={"request_id": data['payload_id']}
         )
 
 
@@ -161,23 +161,23 @@ def make_producer(queue=None):
             topic, msg, payload_id = item['topic'], item['msg'], item['msg'].get('payload_id')
             logger.info(
                 "Popped data from produce queue (qsize now: %d) for topic [%s], payload_id [%s]: %s",
-                len(queue), topic, payload_id, msg
+                len(queue), topic, payload_id, msg, extra={"request_id": payload_id}
             )
             try:
                 await client.send_and_wait(topic, json.dumps(msg).encode("utf-8"))
-                logger.info("send data for topic [%s] with payload_id [%s] succeeded", topic, payload_id)
+                logger.info("send data for topic [%s] with payload_id [%s] succeeded", topic, payload_id, extra={"request_id": payload_id})
             except KafkaError:
                 queue.append(item)
                 logger.error(
                     "send data for topic [%s] with payload_id [%s] failed, put back on queue (qsize now: %d)",
-                    topic, payload_id, len(queue)
+                    topic, payload_id, len(queue), extra={"request_id": payload_id}
                 )
                 raise
     return send_result
 
 
 @time(mnm.validation_time)
-async def validate(url):
+async def validate(url, request_id):
 
     def _write(filename, data):
         with open(filename, "wb") as f:
@@ -192,9 +192,9 @@ async def validate(url):
                 await loop.run_in_executor(None, _write, temp, data)
             await session.close()
 
-        return await loop.run_in_executor(None, extract_facts, temp)
+        return await loop.run_in_executor(None, extract_facts, temp, request_id)
     except Exception as e:
-        logger.exception("Validation failure: %s", e)
+        logger.exception("Validation failure: %s", e, extra={"request_id": request_id})
         os.remove(temp)
 
 
@@ -219,27 +219,29 @@ async def post_to_inventory(facts, msg):
                 response_json = await response.json()
                 if response.status != 207:
                     error = response_json.get('detail')
-                    logger.error('Failed to post to inventory: %s', error)
+                    logger.error('Failed to post to inventory: %s', error, extra={"request_id": post['payload_id']})
                     return {"error": "Failed to post to inventory."}
                 elif response_json['data'][0]['status'] != 200 and response_json['data'][0]['status'] != 201:
                     mnm.inventory_post_failure.inc()
                     logger.error(
-                        'payload_id [%s] failed to post to inventory.', msg['payload_id']
+                        'payload_id [%s] failed to post to inventory.', msg['payload_id'], extra={"request_id": post['payload_id']}
                     )
                     logger.error(
-                        'inventory error response: %s', await response.text()
+                        'inventory error response: %s', await response.text(), extra={"request_id": post['payload_id']}
                     )
                     return {"error": "Failed to post to inventory."}
                 else:
                     mnm.inventory_post_success.inc()
                     logger.info("payload_id [%s] posted to inventory: ID [%s]",
                                 msg['payload_id'],
-                                response_json['data'][0]['host']['id'])
+                                response_json['data'][0]['host']['id'],
+                                extra={"request_id": post['payload_id']})
                     return response_json['data'][0]['host']
             await session.close()
 
     except ClientConnectionError as e:
-        logger.error("payload_id [%s] failed to post to inventory, unable to connect: %s", msg['payload_id'], e)
+        logger.error("payload_id [%s] failed to post to inventory, unable to connect: %s", msg['payload_id'], e,
+                     extra={"request_id": post['payload_id']})
         return {"error": "Unable to update inventory. Service unavailable"}
 
 
