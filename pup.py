@@ -51,6 +51,7 @@ if (configuration.AWS_ACCESS_KEY_ID and configuration.AWS_SECRET_ACCESS_KEY):
     logger.addHandler(cw_handler)
 
 thread_pool_executor = ThreadPoolExecutor(max_workers=configuration.MAX_WORKERS)
+fact_extraction_executor = ThreadPoolExecutor(1)
 loop = asyncio.get_event_loop()
 
 kafka_consumer = AIOKafkaConsumer(
@@ -192,7 +193,7 @@ async def validate(url, request_id):
                 await loop.run_in_executor(None, _write, temp, data)
             await session.close()
 
-        return await loop.run_in_executor(None, extract_facts, temp, request_id)
+        return await loop.run_in_executor(fact_extraction_executor, extract_facts, temp, request_id)
     except Exception as e:
         logger.exception("Validation failure: %s", e, extra={"request_id": request_id})
         os.remove(temp)
