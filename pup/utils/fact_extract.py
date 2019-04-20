@@ -200,7 +200,7 @@ def get_system_profile(path=None):
     return result
 
 
-def extract_facts(archive, request_id):
+def extract_facts(archive, request_id, remove=True):
     # TODO: facts, system_profiles, and errors are all passed through via the
     # 'facts' hash. These should likely be split out.
     logger.info("extracting facts from %s", archive, extra={"request_id": request_id})
@@ -214,6 +214,7 @@ def extract_facts(archive, request_id):
         facts['error'] = e
 
     groomed_facts = _remove_empties(_remove_bad_display_name(facts))
-    os.remove(archive)
+    if remove:
+        os.remove(archive)
     logger.info("Successfully extracted canonical facts", extra={"request_id": request_id})
     return groomed_facts
