@@ -281,14 +281,7 @@ def main():
         loop.set_default_executor(thread_pool_executor)
         loop.create_task(CONSUMER.get_callback(consume)())
         loop.create_task(PRODUCER.get_callback(make_responder(produce_queue))())
-        loop.create_task(
-            SYSTEM_PROFILE_PRODUCER.get_callback(
-                make_producer(
-                    send_system_profile,
-                    system_profile_queue
-                )
-            )()
-        )
+        loop.create_task(SYSTEM_PROFILE_PRODUCER.get_callback(make_producer(send_system_profile, system_profile_queue))())
 
         loop.run_forever()
     except KeyboardInterrupt:
