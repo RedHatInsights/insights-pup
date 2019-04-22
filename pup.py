@@ -284,7 +284,8 @@ def main():
         loop.create_task(
             SYSTEM_PROFILE_PRODUCER.get_callback(
                 make_producer(
-                    send_system_profile
+                    send_system_profile,
+                    system_profile_queue
                 )
             )()
         )
