@@ -13,7 +13,7 @@ from logstash_formatter import LogstashFormatterV1
 from concurrent.futures import ThreadPoolExecutor
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from kafka.errors import KafkaError
-from kafkahelpers import ReconnectingClient
+from kafkahelpers import ReconnectingClient, make_producer
 from prometheus_async.aio import time
 from boto3.session import Session
 
@@ -62,12 +62,18 @@ kafka_producer = AIOKafkaProducer(
     loop=loop, bootstrap_servers=configuration.MQ, request_timeout_ms=10000,
     connections_max_idle_ms=None
 )
+system_profile_producer = AIOKafkaProducer(
+    loop=loop, bootstrap_servers=configuration.MQ, request_timeout_ms=10000,
+    connections_max_idle_ms=None
+)
 
 CONSUMER = ReconnectingClient(kafka_consumer, "consumer")
 PRODUCER = ReconnectingClient(kafka_producer, "producer")
+SYSTEM_PROFILE_PRODUCER = ReconnectingClient(system_profile_producer, "system-profile-producer")
 
 # local queue for pushing items into kafka, this queue fills up if kafka goes down
 produce_queue = collections.deque([], 999)
+system_profile_queue = collections.deque()
 
 
 async def consume(client):
@@ -127,7 +133,11 @@ async def handle_file(msgs):
             logger.exception("Validation encountered error: %s", e, extra={"request_id": data['payload_id']})
             continue
 
-        data["satellite_managed"] = result.get("system_profile").get("satellite_managed")
+        # we do not want to POST the system profile to inventory
+        # until after we get an id
+        system_profile = result.pop("system_profile")
+
+        data["satellite_managed"] = system_profile.get("satellite_managed")
 
         if len(result) > 0 and 'error' not in result:
             if result.get('insights_id') != machine_id:
@@ -138,6 +148,13 @@ async def handle_file(msgs):
             if response.get('error'):
                 data_to_produce = fail_upload(data, response)
             else:
+                # As long as we get an id back from inventory
+                # we can send the system profile
+                system_profile_queue.append({
+                    "id": response["id"],
+                    "request_id": data["payload_id"],
+                    "system_profile": system_profile
+                })
                 data_to_produce = succeed_upload(data, response)
 
         else:
@@ -151,7 +168,7 @@ async def handle_file(msgs):
         )
 
 
-def make_producer(queue=None):
+def make_responder(queue=None):
     queue = produce_queue if queue is None else queue
 
     async def send_result(client):
@@ -175,6 +192,18 @@ def make_producer(queue=None):
                 )
                 raise
     return send_result
+
+
+async def send_system_profile(client, item):
+    request_id = item["request_id"]
+
+    await client.send_and_wait(
+        configuration.SYSTEM_PROFILE_QUEUE,
+        json.dumps(item).encode("utf-8")
+    )
+    logger.info("System profile sent for inventory id %s.", item["id"], extra={
+        "request_id": request_id
+    })
 
 
 @time(mnm.validation_time)
@@ -251,7 +280,15 @@ def main():
         mnm.start_http_server(port=9126)
         loop.set_default_executor(thread_pool_executor)
         loop.create_task(CONSUMER.get_callback(consume)())
-        loop.create_task(PRODUCER.get_callback(make_producer(produce_queue))())
+        loop.create_task(PRODUCER.get_callback(make_responder(produce_queue))())
+        loop.create_task(
+            SYSTEM_PROFILE_PRODUCER.get_callback(
+                make_producer(
+                    send_system_profile
+                )
+            )()
+        )
+
         loop.run_forever()
     except KeyboardInterrupt:
         loop.stop()
