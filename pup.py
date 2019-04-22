@@ -141,8 +141,10 @@ async def handle_file(msgs):
 
         if len(result) > 0 and 'error' not in result:
             if result.get('insights_id') != machine_id:
+                logging.info("Posting to inventory since insights_id(%s) == machine_id(%s)", result.get('insights_id'), machine_id)
                 response = await post_to_inventory(result, data)
             else:
+                logging.info("Not posting to inventory, using result instead (%s)", result.get('insights_id'))
                 response = {"id": result.get('insights_id')}
 
             if response.get('error'):
