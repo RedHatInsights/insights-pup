@@ -125,7 +125,6 @@ async def handle_file(msgs):
             logger.error("handle_file(): unable to decode msg as json: %s", msg.value, extra={"request_id": data['payload_id']})
             continue
 
-        machine_id = data['metadata'].get('machine_id') if data.get('metadata') else None
         mnm.total.inc()
         try:
             result = await validate(data['url'], data["payload_id"])
@@ -140,12 +139,12 @@ async def handle_file(msgs):
         data["satellite_managed"] = system_profile.get("satellite_managed")
 
         if len(result) > 0 and 'error' not in result:
-            if result.get('insights_id') != machine_id:
-                logging.info("Posting to inventory since insights_id(%s) == machine_id(%s)", result.get('insights_id'), machine_id)
+            if not data.get('id'):
+                logger.info("Inventory ID not included in message from upload-service [%s]", extra={"request_id": data["payload_id"]})
                 response = await post_to_inventory(result, data)
             else:
-                logging.info("Not posting to inventory, using result instead (%s)", result.get('insights_id'))
-                response = {"id": result.get('insights_id')}
+                logger.info("Not posting to inventory, using ID from upload-service (%s)", data.get("id"), extra={"request_id": data["payload_id"]})
+                response = {"id": data.get('id')}
 
             if response.get('error'):
                 data_to_produce = fail_upload(data, response)
