@@ -158,6 +158,7 @@ async def handle_file(msgs):
                 # we can send the system profile
                 system_profile_queue.append({
                     "id": response["id"],
+                    "account": data["account"],
                     "request_id": data["payload_id"],
                     "system_profile": system_profile
                 })
