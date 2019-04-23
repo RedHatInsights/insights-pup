@@ -140,7 +140,7 @@ async def handle_file(msgs):
 
         if len(result) > 0 and 'error' not in result:
             if not data.get('id'):
-                logger.info("Inventory ID not included in message from upload-service [%s]", extra={"request_id": data["payload_id"]})
+                logger.info("Inventory ID not included in message from upload-service [%s]", data["payload_id"], extra={"request_id": data["payload_id"]})
                 response = await post_to_inventory(result, data)
             else:
                 logger.info("Not posting to inventory, using ID from upload-service (%s)", data.get("id"), extra={"request_id": data["payload_id"]})
