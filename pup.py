@@ -79,9 +79,8 @@ system_profile_queue = collections.deque()
 async def consume(client):
     data = await client.getmany()
     for tp, msgs in data.items():
-        if tp.topic == configuration.PUP_QUEUE:
-            logger.info("received messages: %s", msgs)
-            loop.create_task(handle_file(msgs))
+        logger.info("received messages: %s", msgs)
+        loop.create_task(handle_file(msgs))
     await asyncio.sleep(0.1)
 
 
