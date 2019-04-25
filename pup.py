@@ -8,7 +8,6 @@ import aiohttp
 import watchtower
 import signal
 
-from time import sleep
 from tempfile import NamedTemporaryFile
 from aiohttp.client_exceptions import ClientConnectionError
 from logstash_formatter import LogstashFormatterV1
@@ -291,6 +290,7 @@ async def post_to_inventory(facts, msg):
         logger.error("payload_id [%s] failed to post to inventory, unable to connect: %s", msg['payload_id'], e,
                      extra={"request_id": post['payload_id'], "account": post["account"]})
         return {"error": "Unable to update inventory. Service unavailable"}
+
 
 async def shutdown(signal, loop):
     logger.error("Recieved Exit Signal: %s", signal.name)
