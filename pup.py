@@ -294,6 +294,7 @@ def main():
         loop.create_task(CONSUMER.get_callback(consume)())
         loop.create_task(PRODUCER.get_callback(make_responder(produce_queue))())
         loop.create_task(SYSTEM_PROFILE_PRODUCER.get_callback(make_producer(send_system_profile, system_profile_queue))())
+        logger.info("PUP Service Activated")
         loop.run_forever()
     except KeyboardInterrupt:
         loop.stop()
