@@ -4,16 +4,16 @@ import os
 from insights import extract, rule, make_metadata, run
 
 from insights.combiners.cloud_provider import CloudProvider
+from insights.combiners.redhat_release import RedHatRelease
+from insights.combiners.virt_what import VirtWhat
 from insights.parsers.dmidecode import DMIDecode
 from insights.parsers.cpuinfo import CpuInfo
 from insights.parsers.date import DateUTC
 from insights.parsers.installed_rpms import InstalledRpms
 from insights.parsers.lsmod import LsMod
 from insights.parsers.meminfo import MemInfo
-from insights.parsers.redhat_release import RedhatRelease
 from insights.parsers.uname import Uname
 from insights.parsers.systemd.unitfiles import UnitFiles
-from insights.parsers.virt_what import VirtWhat
 from insights.parsers.ps import PsAuxcww
 from insights.parsers.ip import IpAddr
 from insights.parsers.uptime import Uptime
@@ -31,7 +31,7 @@ SATELLITE_MANAGED_FILES = {
 
 
 @rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IpAddr, DMIDecode,
-                RedhatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
+                RedHatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
                 DateUTC, Uptime, YumReposD, LsEtc, CloudProvider])
 def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                    redhat_release, uname, lsmod, installed_rpms, unit_files, ps_auxcww,
@@ -48,10 +48,12 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
         profile['arch'] = uname.arch
 
     if dmidecode:
-        profile['bios_release_date'] = dmidecode.get('release_date')
-        if dmidecode.get('bios'):
+        try:
+            profile['bios_release_date'] = dmidecode.bios.get('release_date')
             profile['bios_vendor'] = dmidecode.bios.get('vendor')
             profile['bios_version'] = dmidecode.bios.get('version')
+        except AttributeError:
+            pass
 
     if cpu_info:
         profile['cpu_flags'] = cpu_info.flags
@@ -95,6 +97,12 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
     if uname:
         profile['os_kernel_version'] = uname.version
         profile['os_kernel_release'] = uname.release
+
+    if redhat_release:
+        try:
+            profile['os_release'] = redhat_release.rhel
+        except AttributeError:
+            pass
 
     if ps_auxcww:
         profile['running_processes'] = list(ps_auxcww.running)
