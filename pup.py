@@ -6,7 +6,9 @@ import collections
 import json
 import aiohttp
 import watchtower
+import signal
 
+from time import sleep
 from tempfile import NamedTemporaryFile
 from aiohttp.client_exceptions import ClientConnectionError
 from logstash_formatter import LogstashFormatterV1
@@ -20,6 +22,8 @@ from boto3.session import Session
 from pup.utils import mnm, configuration
 from pup.utils.fact_extract import extract_facts
 from pup.utils.get_commit_date import get_commit_date
+
+TASK_LOOPS = {}
 
 # Logging
 if any("KUBERNETES" in k for k in os.environ):
@@ -74,6 +78,7 @@ SYSTEM_PROFILE_PRODUCER = ReconnectingClient(system_profile_producer, "system-pr
 # local queue for pushing items into kafka, this queue fills up if kafka goes down
 produce_queue = collections.deque([], 999)
 system_profile_queue = collections.deque()
+current_archives = []
 
 
 async def consume(client):
@@ -128,6 +133,7 @@ async def handle_file(msgs):
 
         mnm.total.inc()
         try:
+            current_archives.append(data["payload_id"])
             result = await validate(data['url'], data["payload_id"], data["account"])
         except Exception as e:
             logger.exception("Validation encountered error: %s", e, extra={"request_id": data['payload_id'],
@@ -189,6 +195,7 @@ def make_responder(queue=None):
             )
             try:
                 await client.send_and_wait(topic, json.dumps(msg).encode("utf-8"))
+                current_archives.remove(payload_id)
                 logger.info("send data for topic [%s] with payload_id [%s] succeeded", topic, payload_id, extra={"request_id": payload_id,
                                                                                                                  "account": msg["account"]})
             except KafkaError:
@@ -285,18 +292,38 @@ async def post_to_inventory(facts, msg):
                      extra={"request_id": post['payload_id'], "account": post["account"]})
         return {"error": "Unable to update inventory. Service unavailable"}
 
+async def shutdown(signal, loop):
+    logger.error("Recieved Exit Signal: %s", signal.name)
+    logger.debug("Cancelling Consumer ...")
+    TASK_LOOPS["consumer"].cancel()
+    while len(current_archives) > 0:
+        logger.debug("Remaining Archives: %s", len(current_archives))
+        await asyncio.sleep(1)
+
+    logger.debug("Cancelling Producers ... ")
+    TASK_LOOPS["producer"].cancel()
+    TASK_LOOPS["sysprofile_producer"].cancel()
+
+    loop.stop()
+    logger.debug("Shutting Down Thread Pools")
+    fact_extraction_executor.shutdown(wait=True)
+    thread_pool_executor.shutdown(wait=True)
+    logger.info("PUP Shutdown")
+
 
 def main():
-    try:
-        mnm.start_http_server(port=9126)
-        loop.set_default_executor(thread_pool_executor)
-        loop.create_task(CONSUMER.get_callback(consume)())
-        loop.create_task(PRODUCER.get_callback(make_responder(produce_queue))())
-        loop.create_task(SYSTEM_PROFILE_PRODUCER.get_callback(make_producer(send_system_profile, system_profile_queue))())
-        logger.info("PUP Service Activated")
-        loop.run_forever()
-    except KeyboardInterrupt:
-        loop.stop()
+    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+    for s in signals:
+        loop.add_signal_handler(
+            s, lambda s=s: loop.create_task(shutdown(s, loop)))
+
+    mnm.start_http_server(port=9126)
+    loop.set_default_executor(thread_pool_executor)
+    TASK_LOOPS["consumer"] = loop.create_task(CONSUMER.get_callback(consume)())
+    TASK_LOOPS["producer"] = loop.create_task(PRODUCER.get_callback(make_responder(produce_queue))())
+    TASK_LOOPS["sysprofile_producer"] = loop.create_task(SYSTEM_PROFILE_PRODUCER.get_callback(make_producer(send_system_profile, system_profile_queue))())
+    logger.info("PUP Service Activated")
+    loop.run_forever()
 
 
 if __name__ == "__main__":
