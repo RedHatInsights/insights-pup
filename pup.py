@@ -127,9 +127,8 @@ async def handle_file(msgs):
     for msg in msgs:
         try:
             data = json.loads(msg.value)
-        except ValueError:
-            logger.error("handle_file(): unable to decode msg as json: %s", msg.value, extra={"request_id": data['payload_id'],
-                                                                                              "account": data["account"]})
+        except Exception:
+            logger.exception("handle_file(): unable to decode msg as json: %s", msg.value)
             continue
 
         mnm.total.inc()
