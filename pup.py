@@ -76,8 +76,11 @@ SYSTEM_PROFILE_PRODUCER = ReconnectingClient(system_profile_producer, "system-pr
 
 # local queue for pushing items into kafka, this queue fills up if kafka goes down
 produce_queue = collections.deque()
+mnm.produce_queue_size.set_function(lambda: len(produce_queue))
 system_profile_queue = collections.deque()
+mnm.system_profile_queue_size.set_function(lambda: len(system_profile_queue))
 current_archives = []
+mnm.current_archives_size.set_function(lambda: len(current_archives))
 
 
 async def consume(client):
