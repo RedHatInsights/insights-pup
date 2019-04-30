@@ -312,6 +312,7 @@ async def shutdown(signal, loop):
     fact_extraction_executor.shutdown(wait=True)
     thread_pool_executor.shutdown(wait=True)
     logger.info("PUP Shutdown")
+    logging.shutdown()
 
 
 def main():
