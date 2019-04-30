@@ -75,7 +75,7 @@ PRODUCER = ReconnectingClient(kafka_producer, "producer")
 SYSTEM_PROFILE_PRODUCER = ReconnectingClient(system_profile_producer, "system-profile-producer")
 
 # local queue for pushing items into kafka, this queue fills up if kafka goes down
-produce_queue = collections.deque([], 999)
+produce_queue = collections.deque()
 system_profile_queue = collections.deque()
 current_archives = []
 
