@@ -210,24 +210,21 @@ def get_system_profile(path=None):
     return result
 
 
-def extract_facts(archive, request_id, account, remove=True):
+def extract_facts(archive, request_id, account, extra, remove=True):
     # TODO: facts, system_profiles, and errors are all passed through via the
     # 'facts' hash. These should likely be split out.
-    logger.info("extracting facts from %s", archive, extra={"request_id": request_id,
-                                                            "account": account})
+    logger.info("extracting facts from %s", archive, extra=extra)
     facts = {}
     try:
         with extract(archive) as ex:
             facts = get_canonical_facts(path=ex.tmp_dir)
             facts['system_profile'] = get_system_profile(path=ex.tmp_dir)
     except Exception as e:
-        logger.exception("Failed to extract facts: %s", e, extra={"request_id": request_id,
-                                                                  "account": account})
+        logger.exception("Failed to extract facts: %s", e, extra=extra)
         facts['error'] = e
 
     groomed_facts = _remove_empties(_remove_bad_display_name(facts))
     if remove:
         os.remove(archive)
-    logger.info("Successfully extracted canonical facts", extra={"request_id": request_id,
-                                                                 "account": account})
+    logger.info("Successfully extracted canonical facts", extra=extra)
     return groomed_facts
