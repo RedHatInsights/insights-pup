@@ -100,7 +100,7 @@ def get_extra(account="unknown", request_id="unknown"):
 
 
 async def consume(client):
-    data = await client.getmany(timeout=1000, max_records=configuration.MAX_RECORDS)
+    data = await client.getmany(timeout_ms=1000, max_records=configuration.MAX_RECORDS)
     for tp, msgs in data.items():
         logger.info("received messages: %s", msgs)
         loop.create_task(handle_file(msgs))
