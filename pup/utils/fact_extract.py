@@ -1,6 +1,7 @@
 import logging
 import os
 
+from insights.core import dr
 from insights import extract, rule, make_metadata, run
 
 from insights.combiners.cloud_provider import CloudProvider
@@ -23,6 +24,7 @@ from insights.specs import Specs
 from insights.util.canonical_facts import get_canonical_facts
 
 logger = logging.getLogger('advisor-pup')
+dr.log.setLevel("ERROR")
 
 SATELLITE_MANAGED_FILES = {
     "sat5": ["/etc/sysconfig/rhn", "systemid"],
