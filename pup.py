@@ -158,6 +158,10 @@ async def handle_file(msgs):
             logger.exception("Validation encountered error: %s", e, extra=extra)
             continue
 
+        if result is None:
+            logger.info("Validation resulted in a None...ignoring msg", extra=extra)
+            continue
+
         # we do not want to POST the system profile to inventory
         # until after we get an id
         system_profile = result.pop("system_profile")
