@@ -113,6 +113,7 @@ def fail_upload(data, response, extra):
     data_to_produce = {
         'topic': 'platform.upload.validation',
         'msg': {
+            'account': data['account'],
             'payload_id': data['payload_id'],
             'validation': 'failure'
         }
