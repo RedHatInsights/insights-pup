@@ -7,6 +7,7 @@ import json
 import aiohttp
 import watchtower
 import signal
+from functools import partial
 
 from aiohttp.client_exceptions import ClientConnectionError
 from logstash_formatter import LogstashFormatterV1
@@ -320,6 +321,22 @@ async def shutdown(signal, loop):
     logging.shutdown()
 
 
+def _cb(f, label=None):
+    exc = f.exception()
+    if exc:
+        mnm.task_status(label).state("failed")
+        logger.error("Task %s failed with an exception", exc_info=exc)
+    else:
+        mnm.task_status(label).state("done")
+
+
+def make_task(coro, label, loop):
+    task = loop.create_task(coro)
+    mnm.task_status.labels(label).state("running")
+    task.add_done_callback(partial(_cb, label=label))
+    return task
+
+
 def main():
     signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
     for s in signals:
@@ -328,9 +345,15 @@ def main():
 
     mnm.start_http_server(port=9126)
     loop.set_default_executor(thread_pool_executor)
-    TASK_LOOPS["consumer"] = loop.create_task(CONSUMER.get_callback(consume)())
-    TASK_LOOPS["producer"] = loop.create_task(PRODUCER.get_callback(make_responder(produce_queue))())
-    TASK_LOOPS["sysprofile_producer"] = loop.create_task(SYSTEM_PROFILE_PRODUCER.get_callback(make_producer(send_system_profile, system_profile_queue))())
+    TASK_LOOPS["consumer"] = make_task(
+        CONSUMER.get_callback(consume)(), "consumer", loop)
+    TASK_LOOPS["producer"] = make_task(
+        PRODUCER.get_callback(make_responder(produce_queue))(), "producer", loop)
+    TASK_LOOPS["sysprofile_producer"] = make_task(
+        SYSTEM_PROFILE_PRODUCER.get_callback(
+            make_producer(send_system_profile, system_profile_queue)
+        )(), "sysprofile_producer", loop)
+
     logger.info("PUP Service Activated")
     loop.run_forever()
 
