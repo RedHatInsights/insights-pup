@@ -8,6 +8,9 @@ inventory_post_failure = Counter('pup_advsior_inventory_post_failure', 'The tota
 
 validation_time = Summary('validation_processing_seconds', 'Time spent validating archive')
 inventory_post_time = Summary('inventory_post_processing_seconds', 'Time spent posting to inventory')
+handle_file_time = Summary('pup_handle_file_time', 'Time spent executing handle_file')
+extract_facts_time = Summary('pup_extract_facts_time', 'Time spent extracting facts')
+payload_size = Summary('pup_payload_size', 'Size in bytes of processed payloads')
 
 upload_service_version = Info('upload_service_version', 'Build commit and date')
 
