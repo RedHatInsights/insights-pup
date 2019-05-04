@@ -1,4 +1,4 @@
-from prometheus_client import start_http_server, Info, Counter, Gauge, Summary # noqa
+from prometheus_client import start_http_server, Info, Counter, Enum, Gauge, Summary # noqa
 
 total = Counter('pup_advisor_total', 'The total amount of uploads')
 valid = Counter('pup_advisor_valid', 'The total amount of valid uploads')
@@ -17,3 +17,5 @@ upload_service_version = Info('upload_service_version', 'Build commit and date')
 produce_queue_size = Gauge("pup_produce_queue_size", "Size of the produce queue")
 system_profile_queue_size = Gauge("pup_system_profile_queue_size", "Size of the system profile queue")
 current_archives_size = Gauge("pup_current_archives_size", "Number of archives processing currently")
+
+task_status = Enum("pup_task_stat", "The state of each async task", ["task_name"], states=["running", "failed", "done"])
