@@ -208,8 +208,8 @@ def make_responder(queue=None):
             extra["account"] = msg["account"]
             extra["request_id"] = payload_id
             logger.info(
-                "Popped data from produce queue (qsize now: %d) for topic [%s], payload_id [%s]: %s",
-                len(queue), topic, payload_id, msg, extra=extra)
+                "Popped data from produce queue (qsize now: %d) for topic [%s], payload_id [%s]",
+                len(queue), topic, payload_id, extra=extra)
             try:
                 await client.send_and_wait(topic, json.dumps(msg).encode("utf-8"))
                 current_archives.remove(payload_id)
