@@ -1,5 +1,5 @@
 import logging
-import os
+from tempfile import NamedTemporaryFile
 
 from . import mnm
 
@@ -213,21 +213,23 @@ def get_system_profile(path=None):
 
 
 @mnm.extract_facts_time.time()
-def extract_facts(archive, request_id, account, extra, remove=True):
+def extract_facts(data, request_id, account, extra, remove=True):
     # TODO: facts, system_profiles, and errors are all passed through via the
     # 'facts' hash. These should likely be split out.
-    logger.info("extracting facts from %s", archive, extra=extra)
     facts = {}
     try:
-        with extract(archive) as ex:
-            facts = get_canonical_facts(path=ex.tmp_dir)
-            facts['system_profile'] = get_system_profile(path=ex.tmp_dir)
+        with NamedTemporaryFile(delete=remove) as tf:
+            tf.write(data)
+            data = None
+            logger.info("extracting facts from %s", tf.name, extra=extra)
+            with extract(tf.name) as ex:
+                facts = get_canonical_facts(path=ex.tmp_dir)
+                facts['system_profile'] = get_system_profile(path=ex.tmp_dir)
     except Exception as e:
         logger.exception("Failed to extract facts: %s", e, extra=extra)
         facts['error'] = e
-
-    groomed_facts = _remove_empties(_remove_bad_display_name(facts))
-    if remove:
-        os.remove(archive)
-    logger.info("Successfully extracted canonical facts", extra=extra)
-    return groomed_facts
+    else:
+        logger.info("Successfully extracted canonical facts", extra=extra)
+    finally:
+        groomed_facts = _remove_empties(_remove_bad_display_name(facts))
+        return groomed_facts
