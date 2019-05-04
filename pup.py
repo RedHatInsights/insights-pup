@@ -8,7 +8,6 @@ import aiohttp
 import watchtower
 import signal
 
-from tempfile import NamedTemporaryFile
 from aiohttp.client_exceptions import ClientConnectionError
 from logstash_formatter import LogstashFormatterV1
 from concurrent.futures import ThreadPoolExecutor
@@ -237,24 +236,14 @@ async def send_system_profile(client, item):
 @time(mnm.validation_time)
 async def validate(url, request_id, account):
     extra = get_extra(account, request_id)
-
-    def _write(filename, data):
-        with open(filename, "wb") as f:
-            f.write(data)
-
     try:
-        temp = NamedTemporaryFile(delete=False).name
-
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 data = await response.read()
-                await loop.run_in_executor(None, _write, temp, data)
-            await session.close()
-
-        return await loop.run_in_executor(fact_extraction_executor, extract_facts, temp, request_id, account, extra)
+                mnm.payload_size.observe(len(data))
+                return await loop.run_in_executor(fact_extraction_executor, extract_facts, data, request_id, account, extra)
     except Exception as e:
         logger.exception("Validation failure: %s", e, extra=extra)
-        os.remove(temp)
 
 
 @time(mnm.inventory_post_time)
