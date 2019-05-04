@@ -1,6 +1,8 @@
 import logging
 import os
 
+from . import mnm
+
 from insights.core import dr
 from insights import extract, rule, make_metadata, run
 
@@ -210,6 +212,7 @@ def get_system_profile(path=None):
     return result
 
 
+@mnm.extract_facts_time.time()
 def extract_facts(archive, request_id, account, extra, remove=True):
     # TODO: facts, system_profiles, and errors are all passed through via the
     # 'facts' hash. These should likely be split out.
