@@ -139,6 +139,7 @@ def succeed_upload(data, response, extra):
     return data_to_produce
 
 
+@time(mnm.handle_file_time)
 async def handle_file(msgs):
     extra = get_extra()
     for msg in msgs:
