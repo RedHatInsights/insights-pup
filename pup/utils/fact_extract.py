@@ -1,7 +1,7 @@
 import logging
 from tempfile import NamedTemporaryFile
 
-from . import mnm
+from . import mnm, configuration
 
 from insights.core import dr
 from insights import extract, rule, make_metadata, run
@@ -26,7 +26,7 @@ from insights.specs import Specs
 from insights.util.canonical_facts import get_canonical_facts
 
 logger = logging.getLogger('advisor-pup')
-dr.log.setLevel("ERROR")
+dr.log.setLevel(configuration.FACT_EXTRACT_LOGLEVEL)
 
 SATELLITE_MANAGED_FILES = {
     "sat5": ["/etc/sysconfig/rhn", "systemid"],
