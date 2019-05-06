@@ -154,7 +154,6 @@ async def handle_file(msgs):
 
         mnm.total.inc()
         try:
-            current_archives.append(data["payload_id"])
             result = await validate(data['url'], data["payload_id"], data["account"])
         except Exception as e:
             logger.exception("Validation encountered error: %s", e, extra=extra)
@@ -195,6 +194,7 @@ async def handle_file(msgs):
             data_to_produce = fail_upload(data, result, extra)
 
         produce_queue.append(data_to_produce)
+        current_archives.append(data["payload_id"])
         logger.info(
             "data for topic [%s], payload_id [%s] put on produce queue (qsize now: %d): %s",
             data_to_produce['topic'], data_to_produce['msg']['payload_id'], len(produce_queue), data_to_produce,
