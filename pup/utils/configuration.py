@@ -1,7 +1,7 @@
 import os
 
 # Maximum workers for threaded execution
-BUILD_ID = os.getenv('OPENSHIFT_BUILD_COMMIT')
+BUILD_ID = os.getenv('OPENSHIFT_BUILD_COMMIT', "unknown")
 DEVMODE = os.getenv('DEVMODE', False)
 INVENTORY_URL = os.getenv('INVENTORY_URL', 'http://inventory:5000/api/hosts')
 MAX_WORKERS = int(os.getenv('MAX_WORKERS', 50))

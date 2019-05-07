@@ -360,9 +360,6 @@ def main():
 
 
 if __name__ == "__main__":
-    if configuration.DEVMODE:
-        date = 'devmode'
-    else:
-        date = get_commit_date(configuration.BUILD_ID)
+    date = get_commit_date(configuration.BUILD_ID)
     mnm.upload_service_version.info({"version": configuration.BUILD_ID, "date": date})
     main()
