@@ -109,12 +109,12 @@ async def consume(client):
 
 def fail_upload(data, response, extra):
     mnm.invalid.inc()
-    logger.info("payload_id [%s] validation failed with error: %s", data['payload_id'], response['error'], extra=extra)
+    logger.info("request_id [%s] validation failed with error: %s", data['request_id'], response['error'], extra=extra)
     data_to_produce = {
         'topic': 'platform.upload.validation',
         'msg': {
             'account': data['account'],
-            'payload_id': data['payload_id'],
+            'request_id': data['request_id'],
             'validation': 'failure'
         }
     }
@@ -123,13 +123,13 @@ def fail_upload(data, response, extra):
 
 def succeed_upload(data, response, extra):
     mnm.valid.inc()
-    logger.info("payload_id [%s] validation successful", data['payload_id'], extra=extra)
+    logger.info("request_id [%s] validation successful", data['request_id'], extra=extra)
     data_to_produce = {
         'topic': 'platform.upload.validation',
         'msg': {
             'id': response.get('id') if response else None,
             'service': data['service'],
-            'payload_id': data['payload_id'],
+            'request_id': data['request_id'],
             'account': data['account'],
             'principal': data['principal'],
             'b64_identity': data.get('b64_identity'),
@@ -147,14 +147,14 @@ async def handle_file(msgs):
         try:
             data = json.loads(msg.value)
             extra["account"] = data["account"]
-            extra["request_id"] = data["payload_id"]
+            extra["request_id"] = data["request_id"]
         except Exception:
             logger.exception("handle_file(): unable to decode msg as json: %s", msg.value)
             continue
 
         mnm.total.inc()
         try:
-            result = await validate(data['url'], data["payload_id"], data["account"])
+            result = await validate(data['url'], data["request_id"], data["account"])
         except Exception as e:
             logger.exception("Validation encountered error: %s", e, extra=extra)
             continue
@@ -171,7 +171,7 @@ async def handle_file(msgs):
 
         if len(result) > 0 and 'error' not in result:
             if not data.get('id'):
-                logger.info("Inventory ID not included in message from upload-service [%s]", data["payload_id"], extra=extra)
+                logger.info("Inventory ID not included in message from upload-service [%s]", data["request_id"], extra=extra)
                 response = await post_to_inventory(result, data)
             else:
                 logger.info("Not posting to inventory, using ID from upload-service (%s)", data.get("id"), extra=extra)
@@ -185,7 +185,7 @@ async def handle_file(msgs):
                 system_profile_queue.append({
                     "id": response["id"],
                     "account": data["account"],
-                    "request_id": data["payload_id"],
+                    "request_id": data["request_id"],
                     "system_profile": system_profile
                 })
                 data_to_produce = succeed_upload(data, response, extra)
@@ -194,10 +194,10 @@ async def handle_file(msgs):
             data_to_produce = fail_upload(data, result, extra)
 
         produce_queue.append(data_to_produce)
-        current_archives.append(data["payload_id"])
+        current_archives.append(data["request_id"])
         logger.info(
-            "data for topic [%s], payload_id [%s] put on produce queue (qsize now: %d): %s",
-            data_to_produce['topic'], data_to_produce['msg']['payload_id'], len(produce_queue), data_to_produce,
+            "data for topic [%s], request_id [%s] put on produce queue (qsize now: %d): %s",
+            data_to_produce['topic'], data_to_produce['msg']['request_id'], len(produce_queue), data_to_produce,
             extra=extra)
 
 
@@ -210,21 +210,21 @@ def make_responder(queue=None):
             await asyncio.sleep(0.1)
         else:
             item = queue.popleft()
-            topic, msg, payload_id = item['topic'], item['msg'], item['msg'].get('payload_id')
+            topic, msg, request_id = item['topic'], item['msg'], item['msg'].get('request_id')
             extra["account"] = msg["account"]
-            extra["request_id"] = payload_id
+            extra["request_id"] = request_id
             logger.info(
-                "Popped data from produce queue (qsize now: %d) for topic [%s], payload_id [%s]: %s",
-                len(queue), topic, payload_id, msg, extra=extra)
+                "Popped data from produce queue (qsize now: %d) for topic [%s], request_id [%s]",
+                len(queue), topic, request_id, extra=extra)
             try:
                 await client.send_and_wait(topic, json.dumps(msg).encode("utf-8"))
-                current_archives.remove(payload_id)
-                logger.info("send data for topic [%s] with payload_id [%s] succeeded", topic, payload_id, extra=extra)
+                current_archives.remove(request_id)
+                logger.info("send data for topic [%s] with request_id [%s] succeeded", topic, request_id, extra=extra)
             except KafkaError:
                 queue.append(item)
                 logger.error(
-                    "send data for topic [%s] with payload_id [%s] failed, put back on queue (qsize now: %d)",
-                    topic, payload_id, len(queue), extra=extra)
+                    "send data for topic [%s] with request_id [%s] failed, put back on queue (qsize now: %d)",
+                    topic, request_id, len(queue), extra=extra)
                 raise
     return send_result
 
@@ -264,10 +264,10 @@ async def post_to_inventory(facts, msg):
 
     headers = {'x-rh-identity': post['b64_identity'],
                'Content-Type': 'application/json',
-               'x-rh-insights-request-id': post['payload_id']}
+               'x-rh-insights-request-id': post['request_id']}
 
     extra["account"] = post["account"]
-    extra["request_id"] = post["payload_id"]
+    extra["request_id"] = post["request_id"]
     try:
         timeout = aiohttp.ClientTimeout(total=60)
         async with aiohttp.ClientSession() as session:
@@ -280,7 +280,7 @@ async def post_to_inventory(facts, msg):
                 elif response_json['data'][0]['status'] != 200 and response_json['data'][0]['status'] != 201:
                     mnm.inventory_post_failure.inc()
                     logger.error(
-                        'payload_id [%s] failed to post to inventory.', msg['payload_id'], extra=extra
+                        'request_id [%s] failed to post to inventory.', msg['request_id'], extra=extra
                     )
                     logger.error(
                         'inventory error response: %s', await response.text(), extra=extra
@@ -288,16 +288,16 @@ async def post_to_inventory(facts, msg):
                     return {"error": "Failed to post to inventory."}
                 else:
                     mnm.inventory_post_success.inc()
-                    logger.info("payload_id [%s] posted to inventory: ID [%s]",
-                                msg['payload_id'],
+                    logger.info("request_id [%s] posted to inventory: ID [%s]",
+                                msg['request_id'],
                                 response_json['data'][0]['host']['id'],
-                                extra={"request_id": post['payload_id'],
+                                extra={"request_id": post['request_id'],
                                        "account": post["account"]})
                     return response_json['data'][0]['host']
             await session.close()
 
     except ClientConnectionError as e:
-        logger.error("payload_id [%s] failed to post to inventory, unable to connect: %s", msg['payload_id'], e,
+        logger.error("request_id [%s] failed to post to inventory, unable to connect: %s", msg['request_id'], e,
                      extra=extra)
         return {"error": "Unable to update inventory. Service unavailable"}
 
