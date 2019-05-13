@@ -34,7 +34,7 @@ The JSON expected by the PUP service from the upload service looks like this:
 ```
 {"account": "123456",
  "principal": "test_org",
- "payload_id": "23oikjonsdv329",
+ "request_id": "23oikjonsdv329",
  "size": 234,
  "service": "advisor",
  "b64_identity": "<some big base64 string>",
@@ -63,7 +63,7 @@ Fields:
 
   - account: The account number used to upload. Will be modified to `account_number` when posting to inventory
   - principal: The upload org_id. Will be modified to `org_id` when posting to inventory
-  - payload_id: The ID of the individual uploaded archive
+  - request_id: The ID of the individual uploaded archive
   - size: Size of the payload in bytes
   - service: The service name as provided by the MIME type. 
   - url: The url from which the archive will be downloaded
@@ -73,11 +73,11 @@ The PUP service will respond to the upload service with a message on the message
 
 Success example:
 
-    {"validation": "success", "payload_id": "23oikjonsdv329"}
+    {"validation": "success", "request_id": "23oikjonsdv329"}
 
 Failure example:
 
-    {"validation": "failure", "payload_id": "23oikjonsdv329"}
+    {"validation": "failure", "request_id": "23oikjonsdv329"}
 
 ### Containers
 
