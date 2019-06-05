@@ -256,7 +256,7 @@ async def validate(url, request_id, account):
 async def post_to_inventory(facts, msg):
     extra = get_extra()
     post = {**facts, **msg}
-    post['account'] = post.pop('rh_account')
+    post['account'] = post.pop('account')
     post['facts'] = []
     if post.get('metadata'):
         post['facts'].append({'facts': post.pop('metadata'),
