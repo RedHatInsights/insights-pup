@@ -1,4 +1,4 @@
-import logging
+farimport logging
 from tempfile import NamedTemporaryFile
 
 from . import mnm, configuration
@@ -36,10 +36,10 @@ SATELLITE_MANAGED_FILES = {
 
 @rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IpAddr, DMIDecode,
                 RedHatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
-                DateUTC, Uptime, YumReposD, LsEtc, CloudProvider])
+                DateUTC, Uptime, YumReposD, LsEtc, CloudProvider, Specs.display_name])
 def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                    redhat_release, uname, lsmod, installed_rpms, unit_files, ps_auxcww,
-                   date_utc, uptime, yum_repos_d, ls_etc, cloud_provider):
+                   date_utc, uptime, yum_repos_d, ls_etc, cloud_provider, display_name):
     """
     This method applies parsers to a host and returns a system profile that can
     be sent to inventory service.
@@ -132,6 +132,9 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                                            if satellite_file[0] in ls_etc)
     if cloud_provider:
         profile['cloud_provider'] = cloud_provider.cloud_provider
+
+    if display_name:
+        profile['display_name'] = display_name.content[0]
 
     metadata_response = make_metadata()
     profile_sans_none = _remove_empties(profile)
@@ -231,5 +234,7 @@ def extract_facts(data, request_id, account, extra, remove=True):
     else:
         logger.info("Successfully extracted canonical facts", extra=extra)
     finally:
+        if facts['system_profile'].get('display_name'):
+            facts['display_name'] = facts['system_profile'].get('display_name')
         groomed_facts = _remove_empties(_remove_bad_display_name(facts))
         return groomed_facts
