@@ -1,4 +1,4 @@
-farimport logging
+import logging
 from tempfile import NamedTemporaryFile
 
 from . import mnm, configuration
