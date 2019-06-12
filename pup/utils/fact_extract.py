@@ -23,6 +23,7 @@ from insights.parsers.uptime import Uptime
 from insights.parsers.yum_repos_d import YumReposD
 from insights.parsers.ls_etc import LsEtc
 from insights.specs import Specs
+from insights.specs.insights_archive import InsightsArchiveSpecs
 from insights.util.canonical_facts import get_canonical_facts
 
 logger = logging.getLogger('advisor-pup')
@@ -36,10 +37,10 @@ SATELLITE_MANAGED_FILES = {
 
 @rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IpAddr, DMIDecode,
                 RedHatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
-                DateUTC, Uptime, YumReposD, LsEtc, CloudProvider, Specs.display_name])
+                DateUTC, Uptime, YumReposD, LsEtc, CloudProvider, Specs.display_name, InsightsArchiveSpecs.version_info])
 def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                    redhat_release, uname, lsmod, installed_rpms, unit_files, ps_auxcww,
-                   date_utc, uptime, yum_repos_d, ls_etc, cloud_provider, display_name):
+                   date_utc, uptime, yum_repos_d, ls_etc, cloud_provider, display_name, version_info):
     """
     This method applies parsers to a host and returns a system profile that can
     be sent to inventory service.
@@ -135,6 +136,10 @@ def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
 
     if display_name:
         profile['display_name'] = display_name.content[0]
+
+    if version_info:
+        profile['insights_client_version'] = version_info.content['client_version']
+        profile['insights_egg_version'] = version_info.content['core_version']
 
     metadata_response = make_metadata()
     profile_sans_none = _remove_empties(profile)
