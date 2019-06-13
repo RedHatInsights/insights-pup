@@ -18,7 +18,7 @@ from kafkahelpers import ReconnectingClient, make_producer
 from prometheus_async.aio import time
 from boto3.session import Session
 
-from pup.utils import mnm, configuration
+from pup.utils import mnm, configuration, tracker
 from pup.utils.fact_extract import extract_facts
 from pup.utils.get_commit_date import get_commit_date
 
@@ -118,6 +118,8 @@ def fail_upload(data, response, extra):
             'validation': 'failure'
         }
     }
+    produce_queue.append(tracker.payload_tracker(data["request_id"], data["account"],
+                                                 "failure", "upload failed pup validation"))
     return data_to_produce
 
 
@@ -137,12 +139,16 @@ def succeed_upload(data, response, extra):
             'validation': 'success'
         }
     }
+    produce_queue.append(tracker.payload_tracker(data["request_id"], data["account"],
+                                                 "success", "Upload passed pup validation"))
     return data_to_produce
 
 
 @time(mnm.handle_file_time)
 async def handle_file(msgs):
     extra = get_extra()
+    produce_queue.append(tracker.payload_tracker(extra["request_id"], extra["account"],
+                                                 "processing", "processing upload in pup"))
     for msg in msgs:
         try:
             data = json.loads(msg.value)
@@ -193,6 +199,8 @@ async def handle_file(msgs):
         else:
             data_to_produce = fail_upload(data, result, extra)
 
+        produce_queue.append(tracker.payload_tracker(data["request_id"], data["account"],
+                                                     "responding", "sending validation response to ingress"))
         produce_queue.append(data_to_produce)
         current_archives.append(data["request_id"])
         logger.info(
@@ -255,6 +263,8 @@ async def validate(url, request_id, account):
 @time(mnm.inventory_post_time)
 async def post_to_inventory(facts, msg):
     extra = get_extra()
+    produce_queue.append(tracker.payload_tracker(extra["request_id"], extra["account"],
+                                                 "posting", "posting upload details to inventory"))
     post = {**facts, **msg}
     post['account'] = post.pop('account')
     post['facts'] = []
