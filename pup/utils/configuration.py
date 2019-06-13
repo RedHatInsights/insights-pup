@@ -15,3 +15,4 @@ SYSTEM_PROFILE_QUEUE = os.getenv("SYSTEM_PROFILE_QUEUE", "platform.system-profil
 MAX_RECORDS = int(os.getenv("MAX_RECORDS", 1))
 FACT_EXTRACT_LOGLEVEL = os.getenv("FACT_EXTRACT_LOGLEVEL", "ERROR")
 LOG_GROUP = os.getenv("LOG_GROUP", "platform")
+TRACKER_TOPIC = os.getenv("PAYLOAD_TRACKER_TOPIC", "platform.payload-status")
