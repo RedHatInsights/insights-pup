@@ -18,6 +18,7 @@ prometheus-async = "*"
 flake8 = "*"
 nose = "*"
 responses = "*"
+freezegun = "*"
 
 [requires]
 python_version = "3.6"
