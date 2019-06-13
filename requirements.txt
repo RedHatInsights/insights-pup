@@ -82,3 +82,4 @@ prometheus_async
 nose
 pandas
 ansible
+freezegun
