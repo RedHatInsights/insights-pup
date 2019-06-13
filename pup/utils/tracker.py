@@ -1,6 +1,6 @@
 import datetime
 
-from utils import configuration as config
+from pup.utils import configuration as config
 
 
 def get_time():
