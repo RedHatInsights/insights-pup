@@ -18,4 +18,4 @@ produce_queue_size = Gauge("pup_produce_queue_size", "Size of the produce queue"
 system_profile_queue_size = Gauge("pup_system_profile_queue_size", "Size of the system profile queue")
 current_archives_size = Gauge("pup_current_archives_size", "Number of archives processing currently")
 
-task_status = Enum("pup_task_stat", "The state of each async task", ["task_name"], states=["running", "failed", "done"])
+task_status = Enum("pup_task_stat", "The state of each async task", labelnames=["task_name"], states=["running", "failed", "done"])
