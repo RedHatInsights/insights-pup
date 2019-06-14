@@ -147,8 +147,7 @@ def succeed_upload(data, response, extra):
 @time(mnm.handle_file_time)
 async def handle_file(msgs):
     extra = get_extra()
-    produce_queue.append(tracker.payload_tracker(extra["request_id"], extra["account"],
-                                                 "processing", "processing upload in pup"))
+
     for msg in msgs:
         try:
             data = json.loads(msg.value)
@@ -158,6 +157,8 @@ async def handle_file(msgs):
             logger.exception("handle_file(): unable to decode msg as json: %s", msg.value)
             continue
 
+        produce_queue.append(tracker.payload_tracker(extra["request_id"], extra["account"],
+                                                     "processing", "processing upload in pup"))
         mnm.total.inc()
         try:
             result = await validate(data['url'], data["request_id"], data["account"])
@@ -226,7 +227,8 @@ def make_responder(queue=None):
                 len(queue), topic, request_id, extra=extra)
             try:
                 await client.send_and_wait(topic, json.dumps(msg).encode("utf-8"))
-                current_archives.remove(request_id)
+                if request_id in current_archives:
+                    current_archives.remove(request_id)
                 logger.info("send data for topic [%s] with request_id [%s] succeeded", topic, request_id, extra=extra)
             except KafkaError:
                 queue.append(item)
@@ -335,10 +337,10 @@ async def shutdown(signal, loop):
 def _cb(f, label=None):
     exc = f.exception()
     if exc:
-        mnm.task_status(label).state("failed")
+        mnm.task_status.labels(label).state("failed")
         logger.error("Task %s failed with an exception", exc_info=exc)
     else:
-        mnm.task_status(label).state("done")
+        mnm.task_status.labels(label).state("done")
 
 
 def make_task(coro, label, loop):
