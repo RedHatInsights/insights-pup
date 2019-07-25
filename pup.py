@@ -109,7 +109,7 @@ async def consume(client):
 
 def fail_upload(data, response, extra):
     mnm.invalid.inc()
-    logger.info("request_id [%s] validation failed with error: %s", data['request_id'], response['error'], extra=extra)
+    logger.info("request_id [%s] validation failed with error: %s", data['request_id'], response.get('error'), extra=extra)
     data_to_produce = {
         'topic': 'platform.upload.validation',
         'msg': {
