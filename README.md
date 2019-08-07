@@ -18,6 +18,8 @@ The service runs in Openshift Dedicated.
 
 ## How it Works
 
+![UML](http://www.plantuml.com/plantuml/png/VLCzRzj03DtrAmXrROAcIJDeA3AaGPSMBf9ESI1G9yecUhfJxoYvhk7_Nl4imp5gvmPzF3xoFLBKNHGCqhSs4nPBCFivWrdmXc9aju07wrTPDpBOS8TEeBCeZG_jPTzPZ_KbrWD77zxa36YvHc7lZcbzTpejhgDGsmNViAKZohBYx8o3YyzZlGBQkCY-Uo48l5WA-EQSum8sUQ3VFKKfkSuBoB4ozTN7wvly_TpbQ8pldIZ-GSzLGhl0JgrOnPNxwJRXaV-IGdelsPNLMYZk8XG6DYbOKnHsQGummObYK6ZXmrevsZ7iWHJjGnAhUlEBfDGtHQlRcz4rEM59UHL6UWMLKGAxHQAs95YZu4ZRRETkcurpcePrxrTEPn81WrdoGD04tyxTupNiz5vnl_oHW4OYD7fDn7tMtArObi0kwipZXV61ChG2iJUwI1cC9rLQLbp0p4S1yID_82TZdp0mmjUdfraY7d-zf9qoxb6mWETDdWneDuUdxVRb879wZmfu95V33eC9_D_6jn-dJQZSBhUSSdUw6Tb8q23RFj3Um_CxNPc7XnSrS-vVIBjw4BFK7BJUNCr32GrDqldenDNPwTwdmQlUtSZgM_iF "PUP Processing Flow")
+
 The PUP service workflow is as follows:
 
   - Recieve a message from `platform.upload.advisor` topic in the MQ
