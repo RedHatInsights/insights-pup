@@ -1,0 +1,22 @@
+@startuml
+title PUP Processing Flow
+participant platform.upload.advisor
+participant platform.upload.validation
+participant pup
+participant platform.systemprofile
+participant hbi
+platform.upload.advisor->pup: msg
+Note right of platform.upload.advisor: {"request_id": "abcd1234",\n"account": "000001",\n"principal": "123456",\n"size": "size_in_bytes",\n"service": "destination service",\n"category": "file category",\n"url": "bucket_url",\n"b64_identity": "base64_identity_string",\n"metadata": {}\n}
+pup->pup: Downloads archive from\nS3 bucket
+pup->pup: Extracts facts from archive\nwith insights-core
+alt success
+    pup->hbi: Post to inventory via HTTP
+    Note right of pup: Post Data: [{"facts": {"facts": {}}]
+    pup->platform.systemprofile: Send system profile to inventory via MQ
+    Note right of pup: {"system_profile": {}}
+else failure
+    pup[#0000FF]->platform.upload.validation: msg
+    Note left of pup: {"request_id": "abcd1234",\n"validation": "failure"}
+end
+platform.systemprofile->hbi: msg
+@enduml
