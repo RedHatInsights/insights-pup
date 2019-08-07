@@ -13,7 +13,7 @@ alt success
     pup->hbi: Post to inventory via HTTP
     Note right of pup: Post Data: [{"facts": {"facts": {}}]
     pup->platform.systemprofile: Send system profile to inventory via MQ
-    Note right of pup: {"system_profile": {}}
+    Note right of pup: {"id": "inventory_id",\n"account": "000001",\n"request_id": "abcd1234",\n"system_profile": {}}
 else failure
     pup[#0000FF]->platform.upload.validation: msg
     Note left of pup: {"request_id": "abcd1234",\n"validation": "failure"}
