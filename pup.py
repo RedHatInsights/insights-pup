@@ -136,6 +136,7 @@ def succeed_upload(data, response, extra):
             'principal': data['principal'],
             'b64_identity': data.get('b64_identity'),
             'satellite_managed': data.get('satellite_managed'),
+            'url': data.get('url'),
             'validation': 'success'
         }
     }
@@ -175,6 +176,7 @@ async def handle_file(msgs):
         system_profile = result.pop("system_profile")
 
         data["satellite_managed"] = system_profile.get("satellite_managed")
+        data["satellite_id"] = system_profile.get("satellite_id")
 
         if len(result) > 0 and 'error' not in result:
             if not data.get('id'):
