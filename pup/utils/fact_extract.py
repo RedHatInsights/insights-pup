@@ -34,7 +34,7 @@ dr.log.setLevel(configuration.FACT_EXTRACT_LOGLEVEL)
 @rule(optional=[Specs.hostname, CpuInfo, VirtWhat, MemInfo, IpAddr, DMIDecode,
                 RedHatRelease, Uname, LsMod, InstalledRpms, UnitFiles, PsAuxcww,
                 DateUTC, Uptime, YumReposD, CloudProvider, Specs.display_name, Specs.version_info,
-                InstalledProductIDs. Specs.branch_info])
+                InstalledProductIDs, Specs.branch_info])
 def system_profile(hostname, cpu_info, virt_what, meminfo, ip_addr, dmidecode,
                    redhat_release, uname, lsmod, installed_rpms, unit_files, ps_auxcww,
                    date_utc, uptime, yum_repos_d, ls_etc, cloud_provider, display_name, version_info,
